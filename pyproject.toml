@@ -1,0 +1,31 @@
+[project]
+name = "awslings"
+version = "0.1.0"
+description = "Rustlings-style exercises, quizzes and mock exams for AWS Certified Developer - Associate (DVA-C02)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "boto3>=1.35",
+    "moto[all]>=5.0",
+    "pytest>=8.0",
+    "pyyaml>=6.0",
+    "cryptography>=42",
+]
+
+[project.scripts]
+awslings = "awslings.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["awslings"]
+
+[tool.pytest.ini_options]
+# Exercises are run one file at a time by `awslings`; plain `pytest` only runs the runner's own tests.
+testpaths = ["tests"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]

@@ -1,0 +1,299 @@
+format_version = 1
+
+[[exercises]]
+name = "intro_1"
+path = "exercises/00_intro/intro_1_welcome.py"
+chapter = "intro"
+domain = "-"
+hint = '''
+Nothing to code here: delete the line `# I AM NOT DONE` and save the file.'''
+
+[[exercises]]
+name = "intro_2"
+path = "exercises/00_intro/intro_2_first_call.py"
+chapter = "ch03"
+domain = "1.1"
+hint = '''
+`boto3.client("sqs", region_name="eu-west-1")` pins the region.
+`create_queue(QueueName=..., Attributes={"VisibilityTimeout": "60"})` returns a dict with a "QueueUrl" key.'''
+
+[[exercises]]
+name = "iam_1"
+path = "exercises/01_iam/iam_1_policy_document.py"
+chapter = "ch02"
+domain = "2.1"
+hint = '''
+The current policy language version is "2012-10-17" ("2008-10-17" is the legacy one and lacks policy variables).
+Use a list for "Action" with exactly the two read actions you need, no wildcard.
+Index ARNs look like <table-arn>/index/<index-name>, so `f"{TABLE_ARN}/index/*"` covers all of them.'''
+
+[[exercises]]
+name = "iam_2"
+path = "exercises/01_iam/iam_2_policy_evaluation.py"
+chapter = "ch02"
+domain = "2.1"
+hint = '''
+Build a regex from the pattern: `re.escape(pattern)`, then turn the escaped `\*` into `.*` and `\?` into `.`.
+Use `re.fullmatch(..., flags=re.IGNORECASE)` for actions only. Resources are case-sensitive.
+Go through every statement of every policy. Return "explicitDeny" as soon as a Deny matches. Otherwise remember whether an Allow matched.'''
+
+[[exercises]]
+name = "iam_3"
+path = "exercises/01_iam/iam_3_lambda_role.py"
+chapter = "ch02"
+domain = "2.1"
+hint = '''
+The trust policy says WHO may assume the role. Use Principal {"Service": "lambda.amazonaws.com"} with Action "sts:AssumeRole".
+create_role(RoleName=..., AssumeRolePolicyDocument=json.dumps(trust)) and attach_role_policy(RoleName=..., PolicyArn=...).
+put_role_policy(RoleName=..., PolicyName="dynamodb-write", PolicyDocument=json.dumps(...)) adds an inline policy.'''
+
+[[exercises]]
+name = "iam_4"
+path = "exercises/01_iam/iam_4_bucket_policy_conditions.py"
+chapter = "ch02"
+domain = "2.2"
+hint = '''
+Statement 1: Deny "s3:*" for Principal "*" on both the bucket ARN and bucket/*, with Condition {"Bool": {"aws:SecureTransport": "false"}}.
+Statement 2: Deny "s3:PutObject" on bucket/* with Condition {"StringNotEquals": {"s3:x-amz-server-side-encryption": "aws:kms"}}.
+Statement 3: Allow Principal {"AWS": READER_ROLE_ARN} the action "s3:GetObject" on bucket/*.'''
+
+[[exercises]]
+name = "iam_5"
+path = "exercises/01_iam/iam_5_policy_variables.py"
+chapter = "ch02"
+domain = "2.1"
+hint = '''
+Inside an f-string, `{aws:username}` is treated as Python code. Use a plain string, or double the braces: f"...${{aws:username}}...".
+ListBucket applies to the BUCKET ARN and is narrowed with Condition {"StringLike": {"s3:prefix": [...]}}.
+Get/Put/DeleteObject apply to OBJECT ARNs: arn:aws:s3:::corp-docs/home/${aws:username}/*'''
+
+[[exercises]]
+name = "sdk_1"
+path = "exercises/02_sdk/sdk_1_credential_chain.py"
+chapter = "ch03"
+domain = "2.1"
+hint = '''
+Check the sources in order and return as soon as one provides credentials: explicit → env → shared credentials file → config file → container → instance metadata.
+The profile name comes from env["AWS_PROFILE"] when it is set, otherwise "default".
+Environment credentials need BOTH AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.'''
+
+[[exercises]]
+name = "sdk_2"
+path = "exercises/02_sdk/sdk_2_pagination.py"
+chapter = "ch03"
+domain = "1.1"
+hint = '''
+`paginator = s3.get_paginator("list_objects_v2")`, then `for page in paginator.paginate(Bucket=..., Prefix=...)`.
+A page without objects has no "Contents" key. Use `page.get("Contents", [])`.
+Pass `PaginationConfig={"PageSize": page_size}` to paginate() to control the page size.'''
+
+[[exercises]]
+name = "sdk_3"
+path = "exercises/02_sdk/sdk_3_backoff_jitter.py"
+chapter = "ch03"
+domain = "1.1"
+hint = '''
+Full jitter: `rand() * min(cap, base * 2 ** attempt)`. The first retry uses attempt = 0.
+Catch botocore's ClientError and read the code from `error.response["Error"]["Code"]`.
+Re-raise non-retryable errors right away. After `max_attempts` calls, re-raise the last error.'''
+
+[[exercises]]
+name = "sdk_4"
+path = "exercises/02_sdk/sdk_4_assume_role.py"
+chapter = "ch03"
+domain = "2.1"
+hint = '''
+`sts.assume_role(RoleArn=..., RoleSessionName=..., DurationSeconds=900)` returns a dict with "Credentials".
+Pass the three values to boto3.client(service, aws_access_key_id=..., aws_secret_access_key=..., aws_session_token=..., region_name=...).
+Temporary credentials ALWAYS include a session token. Forgetting it gives "The security token included in the request is invalid".'''
+
+[[exercises]]
+name = "sdk_5"
+path = "exercises/02_sdk/sdk_5_client_config_waiters.py"
+chapter = "ch03"
+domain = "4.3"
+hint = '''
+`from botocore.config import Config`, then `Config(retries={"mode": "standard", "total_max_attempts": 10}, connect_timeout=2, read_timeout=5)`.
+In a botocore Config, "max_attempts" counts RETRIES only. "total_max_attempts" counts every attempt, including the first call.
+Pass it with `boto3.client("dynamodb", config=...)`.
+`client.get_waiter("table_exists").wait(TableName=name)` polls DescribeTable for you.'''
+
+[[exercises]]
+name = "s3_1"
+path = "exercises/03_s3/s3_1_buckets_objects.py"
+chapter = "ch04"
+domain = "1.3"
+hint = '''
+Outside us-east-1, pass CreateBucketConfiguration={"LocationConstraint": region}. In us-east-1, pass no configuration at all.
+put_object(..., ContentType="application/pdf", Metadata={"owner": "finance"}). User metadata is stored as x-amz-meta-owner.
+head_object returns ContentType, ContentLength and Metadata without downloading the body.'''
+
+[[exercises]]
+name = "s3_2"
+path = "exercises/03_s3/s3_2_presigned_urls.py"
+chapter = "ch04"
+domain = "2.1"
+hint = '''
+`s3.generate_presigned_url("get_object", Params={"Bucket": b, "Key": k}, ExpiresIn=300)`.
+`s3.generate_presigned_post(bucket, key, Fields={"Content-Type": "image/png"}, Conditions=[...], ExpiresIn=600)`.
+Size limit condition: ["content-length-range", 0, 2 * 1024 * 1024]. Content type condition: {"Content-Type": "image/png"}.'''
+
+[[exercises]]
+name = "s3_3"
+path = "exercises/03_s3/s3_3_multipart_upload.py"
+chapter = "ch04"
+domain = "1.3"
+hint = '''
+create_multipart_upload → returns "UploadId". upload_part(PartNumber=n, UploadId=..., Body=chunk) → returns "ETag".
+complete_multipart_upload(MultipartUpload={"Parts": [{"PartNumber": n, "ETag": etag}, ...]}).
+Wrap the part uploads in try/except, call abort_multipart_upload, then re-raise. Orphaned parts are billed!'''
+
+[[exercises]]
+name = "s3_4"
+path = "exercises/03_s3/s3_4_encryption.py"
+chapter = "ch04"
+domain = "2.2"
+hint = '''
+Per-object: put_object(..., ServerSideEncryption="aws:kms", SSEKMSKeyId=key_id).
+Default bucket encryption: put_bucket_encryption with Rules=[{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "aws:kms", "KMSMasterKeyID": key_id}, "BucketKeyEnabled": True}].
+head_object returns ServerSideEncryption, SSEKMSKeyId and BucketKeyEnabled.'''
+
+[[exercises]]
+name = "s3_5"
+path = "exercises/03_s3/s3_5_versioning_lifecycle.py"
+chapter = "ch04"
+domain = "1.3"
+hint = '''
+put_bucket_versioning(Bucket=..., VersioningConfiguration={"Status": "Enabled"}).
+A lifecycle rule has: ID, Status "Enabled", Filter {"Prefix": "logs/"}, Transitions, Expiration, NoncurrentVersionExpiration and AbortIncompleteMultipartUpload.
+validate_transitions: STANDARD_IA and ONEZONE_IA need >= 30 days, and the days must strictly increase.'''
+
+[[exercises]]
+name = "s3_6"
+path = "exercises/03_s3/s3_6_cors_notifications.py"
+chapter = "ch04"
+domain = "1.1"
+hint = '''
+CORS rule: {"AllowedOrigins": [origin], "AllowedMethods": ["GET", "PUT"], "AllowedHeaders": ["*"], "ExposeHeaders": ["ETag"], "MaxAgeSeconds": 3000}.
+Queue policy: Principal {"Service": "s3.amazonaws.com"}, Action "sqs:SendMessage", Resource queue_arn, Condition {"ArnLike": {"aws:SourceArn": "arn:aws:s3:::<bucket>"}}.
+Notification: {"QueueConfigurations": [{"QueueArn": ..., "Events": ["s3:ObjectCreated:*"], "Filter": {"Key": {"FilterRules": [{"Name": "prefix", ...}, {"Name": "suffix", ...}]}}}]}.'''
+
+[[exercises]]
+name = "s3_7"
+path = "exercises/03_s3/s3_7_event_keys.py"
+chapter = "ch04"
+domain = "1.2"
+hint = '''
+Keys in S3 events are URL-encoded and use '+' for spaces: `urllib.parse.unquote_plus(raw_key)`.
+Each record has record["s3"]["bucket"]["name"], record["s3"]["object"]["key"] and record["s3"]["object"]["size"].
+Skip keys that start with OUTPUT_PREFIX. Otherwise writing thumbnails back to the same bucket triggers the function again, forever.'''
+
+[[exercises]]
+name = "lambda_1"
+path = "exercises/04_lambda/lambda_1_handler_context.py"
+chapter = "ch05"
+domain = "1.2"
+hint = '''
+The context object has attributes `aws_request_id` and `function_name`, and the method `get_remaining_time_in_millis()`.
+`event.get("name") or "world"` handles both a missing key and an empty string.
+process_batch: before each item, stop if context.get_remaining_time_in_millis() < safety_ms. Return the items you did not process.'''
+
+[[exercises]]
+name = "lambda_2"
+path = "exercises/04_lambda/lambda_2_init_reuse.py"
+chapter = "ch05"
+domain = "4.3"
+hint = '''
+Use the module-level variable `_table`: if it is None, create it with TABLE_FACTORY(TABLE_NAME) and store it. Then return it.
+Inside the function, `global _table` lets you assign to the module-level variable.
+Python modules are loaded once per execution environment, so module globals survive between warm invocations.'''
+
+[[exercises]]
+name = "lambda_3"
+path = "exercises/04_lambda/lambda_3_api_proxy_response.py"
+chapter = "ch06"
+domain = "1.1"
+hint = '''
+The response must be {"statusCode": int, "headers": {...}, "body": json.dumps(...)}. The body must be a STRING.
+`event.get("queryStringParameters") or {}` handles requests without any query string. API Gateway sends None, not {}.
+With proxy integration, API Gateway adds no CORS header for you. Add "Access-Control-Allow-Origin" in every response.'''
+
+[[exercises]]
+name = "lambda_4"
+path = "exercises/04_lambda/lambda_4_sqs_partial_batch.py"
+chapter = "ch05"
+domain = "1.2"
+hint = '''
+Loop over event["Records"]. Each record has "messageId" and a string "body", so use json.loads(record["body"]).
+Catch the exception per record and collect {"itemIdentifier": record["messageId"]}.
+Return {"batchItemFailures": failures}. An empty list means the whole batch succeeded.'''
+
+[[exercises]]
+name = "lambda_5"
+path = "exercises/04_lambda/lambda_5_idempotency.py"
+chapter = "ch11"
+domain = "1.1"
+hint = '''
+table.put_item(Item={...}, ConditionExpression="attribute_not_exists(pk)") fails with ConditionalCheckFailedException if the id was already seen.
+Catch botocore.exceptions.ClientError and check error.response["Error"]["Code"] == "ConditionalCheckFailedException".
+expires_at must be an int in epoch SECONDS: int(now()) + IDEMPOTENCY_TTL_SECONDS.'''
+
+[[exercises]]
+name = "lambda_6"
+path = "exercises/04_lambda/lambda_6_concurrency_math.py"
+chapter = "ch05"
+domain = "4.3"
+hint = '''
+Concurrency = requests per second × average duration in seconds, rounded UP (math.ceil).
+The unreserved pool is account_limit - sum(reservations). AWS keeps at least 100 units unreserved.
+For an SQS event source, AWS recommends a queue visibility timeout of at least 6 × the function timeout.'''
+
+[[exercises]]
+name = "lambda_7"
+path = "exercises/04_lambda/lambda_7_function_config.py"
+chapter = "ch05"
+domain = "1.2"
+hint = '''
+create_function accepts MemorySize, Timeout, Environment={"Variables": {...}}, TracingConfig={"Mode": "Active"}, EphemeralStorage={"Size": 2048} and Architectures=["arm64"].
+put_function_event_invoke_config(FunctionName=..., MaximumRetryAttempts=1, MaximumEventAgeInSeconds=3600, DestinationConfig={"OnFailure": {"Destination": arn}}).
+Asynchronous invocations retry 2 times by default. Destinations receive the event plus context about the result.'''
+
+[[exercises]]
+name = "lambda_8"
+path = "exercises/04_lambda/lambda_8_versions_aliases.py"
+chapter = "ch16"
+domain = "3.4"
+hint = '''
+update_function_code(FunctionName=..., ZipFile=...) changes $LATEST. Then publish_version(FunctionName=...) returns {"Version": "N"}.
+update_alias(FunctionName=..., Name="live", FunctionVersion=stable, RoutingConfig={"AdditionalVersionWeights": {new: 0.1}}).
+To promote, point the alias at the new version and clear the routing: RoutingConfig={"AdditionalVersionWeights": {}}.'''
+
+[[exercises]]
+name = "apigw_1"
+path = "exercises/05_apigw/apigw_1_stages_variables.py"
+chapter = "ch06"
+domain = "3.4"
+hint = '''
+The integration URI is LAMBDA_URI_TEMPLATE.format(function=...). It keeps the literal `${stageVariables.lambdaAlias}` placeholder.
+create_deployment(restApiId=..., stageName="dev", variables={"lambdaAlias": "dev"}) creates the stage with its variables.
+add_permission(FunctionName=name, Qualifier=alias, StatementId=..., Action="lambda:InvokeFunction", Principal="apigateway.amazonaws.com", SourceArn=...).'''
+
+[[exercises]]
+name = "apigw_2"
+path = "exercises/05_apigw/apigw_2_usage_plans.py"
+chapter = "ch06"
+domain = "4.3"
+hint = '''
+create_api_key(name=..., enabled=True) → "id" and "value".
+create_usage_plan(name=..., apiStages=[{"apiId": ..., "stage": ...}], throttle={"rateLimit": 10.0, "burstLimit": 20}, quota={"limit": 1000, "period": "DAY"}).
+create_usage_plan_key(usagePlanId=..., keyId=..., keyType="API_KEY"). Methods must also set apiKeyRequired=True.'''
+
+[[exercises]]
+name = "apigw_3"
+path = "exercises/05_apigw/apigw_3_lambda_authorizer.py"
+chapter = "ch06"
+domain = "2.1"
+hint = '''
+Strip the "Bearer " prefix. Unknown token → raise Exception("Unauthorized") (API Gateway answers 401). Revoked token → Deny policy (403).
+methodArn = arn:aws:execute-api:region:account:api-id/stage/METHOD/path. Keep the first two path parts and append "/*/*".
+The policy document has Version, and a Statement with Action "execute-api:Invoke", Effect and Resource.'''

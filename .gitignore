@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+dist/
+build/
+
+# awslings local cache (exercise results); quiz history in progress/ IS committed
+.awslings/
+
+# mdBook output
+book/book/
+
+# Labs: SAM / CDK build output and local config
+.aws-sam/
+samconfig.toml
+cdk.out/
+node_modules/
+*.zip
+response.json
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
