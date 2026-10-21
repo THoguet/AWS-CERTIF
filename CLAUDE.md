@@ -103,7 +103,8 @@ integrations (retries, circuit breakers), and Amazon Q Developer.
 ## Known changes since the exam guide (tell the learner when relevant)
 
 - SQS max message 256 KB → 1 MiB (Aug 2025). Lambda async payload → 1 MB (Oct 2025). EventBridge up to
-  1 MB. Exam questions may still assume 256 KB. The claim-check pattern (S3 + pointer) stays the expected answer.
+  1 MB. SNS 1 MiB opt-in per topic (Sep 2026, default still 256 KiB). Exam questions may still assume
+  256 KB. The claim-check pattern (S3 + pointer) stays the expected answer.
 - CodeCommit: closed to new customers in Jul 2024, back to general availability in Nov 2025. Still in scope.
 - X-Ray SDKs/daemon in maintenance mode since Feb 2026 (end of support Feb 2027), OpenTelemetry/ADOT
   recommended. The exam still uses X-Ray vocabulary.

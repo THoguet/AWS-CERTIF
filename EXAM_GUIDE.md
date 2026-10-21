@@ -215,7 +215,7 @@ The exam was written against the state of AWS in late 2024. Questions may lag be
 
 | Change | What to answer in the exam |
 |---|---|
-| SQS max message size 256 KB → **1 MiB** (Aug 2025). Lambda async payload 256 KB → **1 MB** (Oct 2025). EventBridge events up to 1 MB | Questions written with 256 KB in mind still expect the **claim-check pattern** (payload in S3, pointer in the message / SQS Extended Client Library) for large payloads |
+| SQS max message size 256 KB → **1 MiB** (Aug 2025). Lambda async payload 256 KB → **1 MB** (Oct 2025). EventBridge events up to 1 MB. SNS: 1 MiB **opt-in** per topic (`MaximumMessageSize`, Sep 2026), 256 KiB by default | Questions written with 256 KB in mind still expect the **claim-check pattern** (payload in S3, pointer in the message / SQS Extended Client Library) for large payloads |
 | CodeCommit closed to new customers (Jul 2024), **back to GA** (Nov 2025) | Still in scope. Know repositories, triggers, IAM/Git credentials |
 | X-Ray SDKs/daemon in **maintenance mode** since Feb 2026 (end of support Feb 2027). OpenTelemetry/ADOT recommended | Exam vocabulary stays X-Ray: segments, subsegments, annotations vs metadata, sampling, daemon on UDP 2000 |
 | API Gateway REST integration timeout can exceed 29 s (Regional/private APIs, quota increase, Jun 2024) | "504 after ~29 s" still points to the integration timeout. The fix is usually to go asynchronous |
