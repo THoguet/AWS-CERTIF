@@ -1,0 +1,102 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: DVA-C02 lab03 - S3 upload -> EventBridge -> Step Functions -> Lambda, DynamoDB, SNS, SQS
+
+Parameters:
+  AlertEmail:
+    Type: String
+    Default: ""
+    Description: Email address for large-order alerts (leave empty to skip the subscription)
+
+Conditions:
+  HasAlertEmail: !Not [!Equals [!Ref AlertEmail, ""]]
+
+Resources:
+  UploadBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      NotificationConfiguration:
+        EventBridgeConfiguration:
+          EventBridgeEnabled: true          # every event of this bucket goes to the default event bus
+
+  SummaryTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: file
+          AttributeType: S
+      KeySchema:
+        - AttributeName: file
+          KeyType: HASH
+
+  AlertTopic:
+    Type: AWS::SNS::Topic
+
+  AlertSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasAlertEmail
+    Properties:
+      TopicArn: !Ref AlertTopic
+      Protocol: email                       # you must confirm it from the email you receive
+      Endpoint: !Ref AlertEmail
+
+  RejectedQueue:
+    Type: AWS::SQS::Queue
+
+  ValidateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: validate.handler
+      Runtime: python3.13
+      Architectures: [arm64]
+      MemorySize: 256
+      Timeout: 30
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref UploadBucket
+
+  ProcessUploadStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Type: STANDARD
+      DefinitionUri: statemachine/process_upload.asl.json
+      DefinitionSubstitutions:              # replace ${...} placeholders in the definition
+        ValidateFunctionArn: !GetAtt ValidateFunction.Arn
+        SummaryTableName: !Ref SummaryTable
+        AlertTopicArn: !Ref AlertTopic
+        RejectedQueueUrl: !Ref RejectedQueue
+      Policies:                             # the state machine's role: only what its states call
+        - LambdaInvokePolicy:
+            FunctionName: !Ref ValidateFunction
+        - DynamoDBWritePolicy:
+            TableName: !Ref SummaryTable
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt AlertTopic.TopicName
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt RejectedQueue.QueueName
+      Events:
+        CsvUploaded:
+          Type: EventBridgeRule             # SAM creates the rule, the target and its IAM role
+          Properties:
+            Pattern:
+              source: [aws.s3]
+              detail-type: [Object Created]
+              detail:
+                bucket:
+                  name: [!Ref UploadBucket]
+                object:
+                  key: [{prefix: incoming/}]
+
+Outputs:
+  BucketName:
+    Value: !Ref UploadBucket
+  StateMachineArn:
+    Value: !Ref ProcessUploadStateMachine
+  SummaryTableName:
+    Value: !Ref SummaryTable
+  RejectedQueueUrl:
+    Value: !Ref RejectedQueue
+  ValidateFunctionName:
+    Value: !Ref ValidateFunction

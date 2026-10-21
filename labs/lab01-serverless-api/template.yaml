@@ -1,0 +1,87 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: DVA-C02 lab01 - items API (API Gateway + Lambda + DynamoDB) with canary deployments
+
+Parameters:
+  FailureRate:
+    Type: Number
+    Default: 0
+    MinValue: 0
+    MaxValue: 1
+    Description: Fraction of requests that fail on purpose (used to test automatic rollback)
+
+Globals:
+  Function:
+    Runtime: python3.13
+    Architectures: [arm64]
+    MemorySize: 256
+    Timeout: 10
+    Environment:
+      Variables:
+        TABLE_NAME: !Ref ItemsTable
+        FAILURE_RATE: !Ref FailureRate
+
+Resources:
+  ItemsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+  ItemsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Create and read items
+      CodeUri: src/
+      Handler: app.handler
+      Policies:
+        - DynamoDBCrudPolicy:            # SAM policy template scoped to this table
+            TableName: !Ref ItemsTable
+      AutoPublishAlias: live             # publish a version on each change, move the "live" alias
+      DeploymentPreference:
+        Type: Canary10Percent5Minutes    # CodeDeploy: 10% for 5 minutes, then 100%
+        Alarms:
+          - !Ref CanaryErrorsAlarm       # alarm during the deployment = automatic rollback
+      Events:
+        CreateItem:
+          Type: Api                      # implicit REST API (ServerlessRestApi), stage "Prod"
+          Properties:
+            Path: /items
+            Method: post
+        GetItem:
+          Type: Api
+          Properties:
+            Path: /items/{id}
+            Method: get
+
+  CanaryErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Errors of the function behind the live alias
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ItemsFunction
+        - Name: Resource
+          Value: !Sub "${ItemsFunction}:live"
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+Outputs:
+  ApiUrl:
+    Description: Base URL of the API (Prod stage)
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod"
+  FunctionName:
+    Value: !Ref ItemsFunction
+  TableName:
+    Value: !Ref ItemsTable

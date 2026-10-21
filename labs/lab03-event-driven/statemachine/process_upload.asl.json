@@ -1,0 +1,101 @@
+{
+  "Comment": "lab03: validate an uploaded CSV file, alert on large totals, store a summary, reject bad files",
+  "StartAt": "ValidateFile",
+  "States": {
+    "ValidateFile": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${ValidateFunctionArn}",
+        "Payload": {
+          "bucket.$": "$.detail.bucket.name",
+          "key.$": "$.detail.object.key"
+        }
+      },
+      "ResultSelector": {
+        "rows.$": "$.Payload.rows",
+        "total.$": "$.Payload.total",
+        "total_cents.$": "$.Payload.total_cents"
+      },
+      "ResultPath": "$.summary",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["InvalidFile"],
+          "ResultPath": "$.error",
+          "Next": "RejectFile"
+        }
+      ],
+      "Next": "IsLargeTotal"
+    },
+    "IsLargeTotal": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.summary.total_cents",
+          "NumericGreaterThan": 100000,
+          "Next": "AlertLargeTotal"
+        }
+      ],
+      "Default": "SaveSummary"
+    },
+    "AlertLargeTotal": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "${AlertTopicArn}",
+        "Subject": "Large order file",
+        "Message.$": "States.Format('File {} contains {} orders for a total of {}', $.detail.object.key, $.summary.rows, $.summary.total)"
+      },
+      "ResultPath": null,
+      "Next": "SaveSummary"
+    },
+    "SaveSummary": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:putItem",
+      "Parameters": {
+        "TableName": "${SummaryTableName}",
+        "Item": {
+          "file": {"S.$": "$.detail.object.key"},
+          "rows": {"N.$": "States.Format('{}', $.summary.rows)"},
+          "total": {"N.$": "$.summary.total"},
+          "processedAt": {"S.$": "$$.State.EnteredTime"}
+        }
+      },
+      "ResultPath": null,
+      "End": true
+    },
+    "RejectFile": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sqs:sendMessage",
+      "Parameters": {
+        "QueueUrl": "${RejectedQueueUrl}",
+        "MessageBody": {
+          "file.$": "$.detail.object.key",
+          "error.$": "$.error.Error",
+          "cause.$": "$.error.Cause"
+        }
+      },
+      "ResultPath": null,
+      "Next": "Rejected"
+    },
+    "Rejected": {
+      "Type": "Fail",
+      "Error": "InvalidFile",
+      "Cause": "The file was rejected. Its details are in the rejected queue."
+    }
+  }
+}

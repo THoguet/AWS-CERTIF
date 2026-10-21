@@ -20,6 +20,10 @@ recommends OpenTelemetry/ADOT. The concepts and the exam vocabulary are
 the same: OpenTelemetry span attributes are converted into X-Ray
 annotations or metadata.)
 
+In AWS Lambda, the function segment belongs to Lambda and the SDK cannot
+modify it: put annotations on a subsegment you create (see
+labs/lab05-observability).
+
 Your task
 ---------
   * `record_checkout(recorder, order, pay)`: annotate customer_tier

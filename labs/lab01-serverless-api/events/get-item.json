@@ -1,0 +1,11 @@
+{
+  "resource": "/items/{id}",
+  "path": "/items/does-not-exist",
+  "httpMethod": "GET",
+  "headers": {"Accept": "application/json"},
+  "queryStringParameters": null,
+  "pathParameters": {"id": "does-not-exist"},
+  "body": null,
+  "isBase64Encoded": false,
+  "requestContext": {"stage": "Prod", "requestId": "4f1c2a52-7b61-11e6-9a41-93e8deadbeef", "httpMethod": "GET"}
+}

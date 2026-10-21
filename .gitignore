@@ -26,3 +26,6 @@ response.json
 .idea/
 .vscode/
 .DS_Store
+
+# Elastic Beanstalk CLI local config
+.elasticbeanstalk/

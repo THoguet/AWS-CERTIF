@@ -43,6 +43,7 @@ optional labs on a real AWS account, and their progress. This file is your stand
 - **Spaced repetition**: when a topic is weak, put it in the PROGRESS.md review queue (+1, +3, +7
   days) and bring it back in later sessions.
 - **Be honest about readiness**: target ≥ 80% on mock exams and ≥ 70% in each domain.
+- **Labs cost real money**: before the learner starts a lab, check lab00 is done (budget alert). When they finish or stop, walk them through the lab's **Teardown** section and the leftovers check in `labs/README.md`.
 
 ## Progress protocol (your memory between sessions)
 
@@ -64,7 +65,7 @@ optional labs on a real AWS account, and their progress. This file is your stand
 | `exercises/` | awslings exercises, ordered by `exercises/info.toml` (which holds the hints) |
 | `solutions/` | Reference solutions (same files, same tests) |
 | `quizzes/bank/*.yaml` | Question bank, one file per chapter (format: `quizzes/README.md`) |
-| `labs/` | Optional hands-on labs on a real AWS account (cost + teardown in each README) |
+| `labs/` | Optional labs on a real AWS account: lab00 account setup, lab01 SAM API + canary, lab02 Cognito, lab03 S3 → EventBridge → Step Functions, lab04 CI/CD pipeline, lab05 observability, lab06 Beanstalk deployments (cost + teardown in each README) |
 | `EXAM_GUIDE.md` | Exam facts, domains → chapters/exercises/quiz topics, in-scope services, recent AWS changes |
 | `STUDY_PLAN.md` | Day-by-day plan, 22 Oct → 25 Nov 2026 |
 | `PROGRESS.md` | Learner state (maintained by you) |
@@ -86,6 +87,7 @@ uv run awslings mock                     # 65 questions, 130 min, weighted like 
 uv run awslings stats                    # accuracy by domain/topic, exercise progress
 uv run awslings validate                 # check info.toml, solutions and the question bank
 uv run python scripts/check_exercises.py [name]   # maintainer check of exercises
+uv run pytest                            # tool tests, lab unit tests, lab template lint (offline)
 mdbook serve book                        # read the book locally (optional, needs mdbook)
 ```
 

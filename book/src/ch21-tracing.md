@@ -62,11 +62,17 @@ from aws_xray_sdk.core import xray_recorder, patch_all
 patch_all()                                               # trace boto3, requests... automatically
 
 def handler(event, context):
-    xray_recorder.put_annotation("customer_tier", event["tier"])     # indexed → filterable
-    xray_recorder.put_metadata("order", event, "shop")               # not indexed → debugging details
-    with xray_recorder.in_subsegment("payment-provider"):
-        pay(event)
+    with xray_recorder.in_subsegment("checkout") as subsegment:
+        subsegment.put_annotation("customer_tier", event["tier"])     # indexed → filterable
+        subsegment.put_metadata("order", event, "shop")               # not indexed → debugging details
+        with xray_recorder.in_subsegment("payment-provider"):
+            pay(event)
 ```
+
+> **Lambda detail** — Lambda creates the function's segment itself. The SDK sees it as a read-only
+> *facade segment*, so `xray_recorder.put_annotation()` called outside a subsegment raises
+> `FacadeSegmentMutationException`. Annotate a subsegment you create, as above. On EC2, ECS or
+> Beanstalk, your code (or a framework middleware) creates the segment and can annotate it directly.
 
 | | **Annotations** | **Metadata** |
 |---|---|---|

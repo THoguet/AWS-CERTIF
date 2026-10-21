@@ -1,0 +1,311 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  DVA-C02 lab04 - CodeCommit -> CodeBuild (tests + package) -> CloudFormation to staging,
+  then a change set, a manual approval and the change set execution for production
+
+Parameters:
+  RepositoryName:
+    Type: String
+    Default: dva-lab04-app
+  BranchName:
+    Type: String
+    Default: main
+  ApprovalEmail:
+    Type: String
+    Default: ""
+    Description: Email notified when a production approval is waiting (optional)
+
+Conditions:
+  HasApprovalEmail: !Not [!Equals [!Ref ApprovalEmail, ""]]
+
+Resources:
+  Repository:
+    Type: AWS::CodeCommit::Repository
+    Properties:
+      RepositoryName: !Ref RepositoryName
+      RepositoryDescription: Application code for DVA-C02 lab04
+
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-old-artifacts
+            Status: Enabled
+            ExpirationInDays: 30
+
+  ApprovalTopic:
+    Type: AWS::SNS::Topic
+
+  ApprovalSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasApprovalEmail
+    Properties:
+      TopicArn: !Ref ApprovalTopic
+      Protocol: email
+      Endpoint: !Ref ApprovalEmail
+
+  # ---- CodeBuild: runs the unit tests and packages the SAM template ---------------------------------
+  BuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: build
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [logs:CreateLogGroup, logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*"
+              - Effect: Allow
+                Action: [s3:GetObject, s3:GetObjectVersion, s3:PutObject]
+                Resource: !Sub "${ArtifactBucket.Arn}/*"
+              - Effect: Allow
+                Action: [s3:ListBucket, s3:GetBucketLocation]
+                Resource: !GetAtt ArtifactBucket.Arn
+              - Effect: Allow
+                Action:
+                  - codebuild:CreateReportGroup
+                  - codebuild:CreateReport
+                  - codebuild:UpdateReport
+                  - codebuild:BatchPutTestCases
+                  - codebuild:BatchPutCodeCoverages
+                Resource: !Sub "arn:${AWS::Partition}:codebuild:${AWS::Region}:${AWS::AccountId}:report-group/*"
+
+  BuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub "${AWS::StackName}-build"
+      ServiceRole: !GetAtt BuildRole.Arn
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: buildspec.yml                 # read from the root of the source artifact
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:7.0
+        EnvironmentVariables:
+          - Name: ARTIFACT_BUCKET
+            Value: !Ref ArtifactBucket
+      TimeoutInMinutes: 15
+
+  # ---- CloudFormation service role: what the deployed stacks may create -----------------------------
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        # Broad on purpose to keep the lab short. In a real pipeline, list the exact services.
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/PowerUserAccess"
+      Policies:
+        - PolicyName: manage-app-roles
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow                   # only roles of the application stacks (dva-lab04-*)
+                Action:
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:GetRole
+                  - iam:PassRole
+                  - iam:TagRole
+                  - iam:UntagRole
+                  - iam:UpdateAssumeRolePolicy
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:GetRolePolicy
+                  - iam:ListRolePolicies
+                  - iam:ListAttachedRolePolicies
+                Resource: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/dva-lab04-*"
+
+  # ---- CodePipeline ---------------------------------------------------------------------------------
+  PipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: pipeline
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetObject, s3:GetObjectVersion, s3:PutObject]
+                Resource: !Sub "${ArtifactBucket.Arn}/*"
+              - Effect: Allow
+                Action: [s3:GetBucketVersioning, s3:GetBucketLocation, s3:ListBucket]
+                Resource: !GetAtt ArtifactBucket.Arn
+              - Effect: Allow
+                Action:
+                  - codecommit:GetBranch
+                  - codecommit:GetCommit
+                  - codecommit:GetRepository
+                  - codecommit:UploadArchive
+                  - codecommit:GetUploadArchiveStatus
+                  - codecommit:CancelUploadArchive
+                Resource: !GetAtt Repository.Arn
+              - Effect: Allow
+                Action: [codebuild:StartBuild, codebuild:BatchGetBuilds]
+                Resource: !GetAtt BuildProject.Arn
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                  - cloudformation:CreateStack
+                  - cloudformation:UpdateStack
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:ValidateTemplate
+                Resource: "*"
+              - Effect: Allow                   # hand the deploy role to CloudFormation, and only to it
+                Action: iam:PassRole
+                Resource: !GetAtt DeployRole.Arn
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: cloudformation.amazonaws.com
+              - Effect: Allow
+                Action: sns:Publish
+                Resource: !Ref ApprovalTopic
+
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: !Ref AWS::StackName
+      PipelineType: V2
+      RoleArn: !GetAtt PipelineRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref ArtifactBucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: Source
+              ActionTypeId: {Category: Source, Owner: AWS, Provider: CodeCommit, Version: "1"}
+              Configuration:
+                RepositoryName: !GetAtt Repository.Name
+                BranchName: !Ref BranchName
+                PollForSourceChanges: false     # the EventBridge rule below starts the pipeline
+              OutputArtifacts:
+                - Name: SourceOutput
+        - Name: Build
+          Actions:
+            - Name: TestAndPackage
+              ActionTypeId: {Category: Build, Owner: AWS, Provider: CodeBuild, Version: "1"}
+              Configuration:
+                ProjectName: !Ref BuildProject
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: BuildOutput
+        - Name: Staging
+          Actions:
+            - Name: Deploy
+              ActionTypeId: {Category: Deploy, Owner: AWS, Provider: CloudFormation, Version: "1"}
+              Configuration:
+                ActionMode: CREATE_UPDATE
+                StackName: dva-lab04-staging
+                TemplatePath: BuildOutput::packaged.yaml
+                Capabilities: CAPABILITY_IAM,CAPABILITY_AUTO_EXPAND
+                RoleArn: !GetAtt DeployRole.Arn
+                ParameterOverrides: '{"Stage": "staging"}'
+              InputArtifacts:
+                - Name: BuildOutput
+        - Name: Production
+          Actions:
+            - Name: CreateChangeSet
+              RunOrder: 1
+              ActionTypeId: {Category: Deploy, Owner: AWS, Provider: CloudFormation, Version: "1"}
+              Configuration:
+                ActionMode: CHANGE_SET_REPLACE
+                StackName: dva-lab04-prod
+                ChangeSetName: dva-lab04-prod-release
+                TemplatePath: BuildOutput::packaged.yaml
+                Capabilities: CAPABILITY_IAM,CAPABILITY_AUTO_EXPAND
+                RoleArn: !GetAtt DeployRole.Arn
+                ParameterOverrides: '{"Stage": "prod"}'
+              InputArtifacts:
+                - Name: BuildOutput
+            - Name: Approve
+              RunOrder: 2
+              ActionTypeId: {Category: Approval, Owner: AWS, Provider: Manual, Version: "1"}
+              Configuration:
+                NotificationArn: !Ref ApprovalTopic
+                CustomData: Review the change set of dva-lab04-prod in the CloudFormation console, then approve.
+            - Name: ExecuteChangeSet
+              RunOrder: 3
+              ActionTypeId: {Category: Deploy, Owner: AWS, Provider: CloudFormation, Version: "1"}
+              Configuration:
+                ActionMode: CHANGE_SET_EXECUTE
+                StackName: dva-lab04-prod
+                ChangeSetName: dva-lab04-prod-release
+
+  # ---- Start the pipeline on every push to the branch ------------------------------------------------
+  TriggerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: start-pipeline
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: codepipeline:StartPipelineExecution
+                Resource: !Sub "arn:${AWS::Partition}:codepipeline:${AWS::Region}:${AWS::AccountId}:${Pipeline}"
+
+  TriggerRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Start the pipeline when the branch is created or updated
+      EventPattern:
+        source: [aws.codecommit]
+        detail-type: [CodeCommit Repository State Change]
+        resources: [!GetAtt Repository.Arn]
+        detail:
+          event: [referenceCreated, referenceUpdated]
+          referenceType: [branch]
+          referenceName: [!Ref BranchName]
+      Targets:
+        - Id: pipeline
+          Arn: !Sub "arn:${AWS::Partition}:codepipeline:${AWS::Region}:${AWS::AccountId}:${Pipeline}"
+          RoleArn: !GetAtt TriggerRole.Arn
+
+Outputs:
+  GitRemote:
+    Description: Remote URL for git-remote-codecommit
+    Value: !Sub "codecommit::${AWS::Region}://${Repository.Name}"
+  PipelineName:
+    Value: !Ref Pipeline
+  ArtifactBucketName:
+    Value: !Ref ArtifactBucket
+  BuildProjectName:
+    Value: !Ref BuildProject

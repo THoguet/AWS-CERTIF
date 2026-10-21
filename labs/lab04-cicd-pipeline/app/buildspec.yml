@@ -1,0 +1,29 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.12
+    commands:
+      - pip install --quiet pytest
+  pre_build:
+    commands:
+      - python -m pytest --junitxml=reports/junit.xml tests     # a failing test fails the build
+  build:
+    commands:
+      # Upload the code in CodeUri to S3 and write a template that points to it.
+      - aws cloudformation package --template-file template.yaml --s3-bucket "$ARTIFACT_BUCKET" --s3-prefix packages --output-template-file packaged.yaml
+  post_build:
+    commands:
+      - echo "Build finished at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+reports:
+  unit-tests:
+    files:
+      - junit.xml
+    base-directory: reports
+    file-format: JUNITXML
+
+artifacts:
+  files:
+    - packaged.yaml

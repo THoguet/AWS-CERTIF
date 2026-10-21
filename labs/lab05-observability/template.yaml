@@ -1,0 +1,144 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: DVA-C02 lab05 - X-Ray tracing, EMF metrics, structured logs, a metric filter alarm and a dashboard
+
+Parameters:
+  AlarmEmail:
+    Type: String
+    Default: ""
+    Description: Email address notified by the alarm (leave empty to skip the subscription)
+
+Conditions:
+  HasAlarmEmail: !Not [!Equals [!Ref AlarmEmail, ""]]
+
+Resources:
+  OrdersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+  CheckoutLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AWS::StackName}-checkout"
+      RetentionInDays: 7                    # without retention, logs are kept (and billed) forever
+
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: dev
+      TracingEnabled: true                  # X-Ray tracing on the API Gateway stage (REST APIs only)
+
+  CheckoutFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/                         # requirements.txt adds the X-Ray SDK
+      Handler: app.handler
+      Runtime: python3.13
+      Architectures: [arm64]
+      MemorySize: 256
+      Timeout: 10
+      Tracing: Active                       # Lambda sends segments to X-Ray (SAM adds the IAM permissions)
+      LoggingConfig:
+        LogFormat: Text
+        LogGroup: !Ref CheckoutLogs         # log to the group above instead of the default one
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref OrdersTable
+          SERVICE_NAME: checkout
+          METRICS_NAMESPACE: DvaLab05
+      Policies:
+        - DynamoDBWritePolicy:
+            TableName: !Ref OrdersTable
+      Events:
+        Checkout:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /checkout
+            Method: post
+
+  ErrorsMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref CheckoutLogs
+      FilterPattern: '{ $.level = "ERROR" }'  # matches the JSON error lines written by the function
+      MetricTransformations:
+        - MetricNamespace: DvaLab05
+          MetricName: CheckoutErrors
+          MetricValue: "1"
+
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+
+  AlarmSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasAlarmEmail
+    Properties:
+      TopicArn: !Ref AlarmTopic
+      Protocol: email
+      Endpoint: !Ref AlarmEmail
+
+  CheckoutErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Checkout errors in at least 2 of the last 3 minutes
+      Namespace: DvaLab05
+      MetricName: CheckoutErrors
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 3                  # M out of N: 2 breaching minutes out of 3
+      DatapointsToAlarm: 2
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching        # no error lines = no data = fine
+      AlarmActions: [!Ref AlarmTopic]
+      OKActions: [!Ref AlarmTopic]
+
+  Dashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Ref AWS::StackName
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {"type": "metric", "x": 0, "y": 0, "width": 12, "height": 6,
+             "properties": {"title": "Function duration (ms)", "region": "${AWS::Region}", "view": "timeSeries", "period": 60,
+               "metrics": [
+                 ["AWS/Lambda", "Duration", "FunctionName", "${CheckoutFunction}", {"stat": "p50", "label": "p50"}],
+                 ["AWS/Lambda", "Duration", "FunctionName", "${CheckoutFunction}", {"stat": "p99", "label": "p99"}]
+               ]}},
+            {"type": "metric", "x": 12, "y": 0, "width": 12, "height": 6,
+             "properties": {"title": "Order value by tier (EMF)", "region": "${AWS::Region}", "view": "timeSeries", "stat": "Sum", "period": 60,
+               "metrics": [
+                 ["DvaLab05", "OrderValue", "Service", "checkout", "Tier", "gold"],
+                 ["DvaLab05", "OrderValue", "Service", "checkout", "Tier", "silver"],
+                 ["DvaLab05", "OrderValue", "Service", "checkout", "Tier", "free"]
+               ]}},
+            {"type": "metric", "x": 0, "y": 6, "width": 12, "height": 6,
+             "properties": {"title": "Errors", "region": "${AWS::Region}", "view": "timeSeries", "stat": "Sum", "period": 60,
+               "metrics": [
+                 ["AWS/Lambda", "Errors", "FunctionName", "${CheckoutFunction}", {"label": "Lambda Errors"}],
+                 ["DvaLab05", "CheckoutErrors", {"label": "ERROR log lines (metric filter)"}]
+               ]}},
+            {"type": "log", "x": 12, "y": 6, "width": 12, "height": 6,
+             "properties": {"title": "Slowest payments", "region": "${AWS::Region}", "view": "table",
+               "query": "SOURCE '${CheckoutLogs}' | filter message = 'order placed' | fields @timestamp, tier, latency_ms, correlation_id | sort latency_ms desc | limit 10"}}
+          ]
+        }
+
+Outputs:
+  ApiUrl:
+    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.${AWS::URLSuffix}/dev"
+  LogGroupName:
+    Value: !Ref CheckoutLogs
+  AlarmName:
+    Value: !Ref CheckoutErrorsAlarm
+  DashboardName:
+    Value: !Ref Dashboard

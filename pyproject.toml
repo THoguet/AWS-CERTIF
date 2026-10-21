@@ -24,7 +24,7 @@ packages = ["awslings"]
 
 [tool.pytest.ini_options]
 # Exercises are run one file at a time by `awslings`; plain `pytest` only runs the runner's own tests.
-testpaths = ["tests"]
+testpaths = ["tests", "labs"]
 filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning",

@@ -1,0 +1,102 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: DVA-C02 lab02 - Cognito user pool and a REST API protected by a Cognito authorizer
+
+Globals:
+  Function:
+    Runtime: python3.13
+    Architectures: [arm64]
+    MemorySize: 128
+    Timeout: 5
+
+Resources:
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub "${AWS::StackName}-users"
+      UserPoolTier: LITE
+      UsernameAttributes: [email]            # users sign in with their email address
+      AutoVerifiedAttributes: [email]        # Cognito emails a confirmation code at sign-up
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 12
+          RequireLowercase: true
+          RequireUppercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: public-client
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false                  # public client (browser, mobile, CLI): no secret
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH           # lets you sign in from the CLI; real apps prefer SRP
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      AccessTokenValidity: 60
+      IdTokenValidity: 60
+      RefreshTokenValidity: 30
+      TokenValidityUnits:
+        AccessToken: minutes
+        IdToken: minutes
+        RefreshToken: days
+
+  AdminsGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      UserPoolId: !Ref UserPool
+      GroupName: admins
+      Description: Users allowed to call GET /admin
+
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: dev
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer   # every route requires a valid token...
+        Authorizers:
+          CognitoAuthorizer:
+            UserPoolArn: !GetAtt UserPool.Arn  # token read from the Authorization header
+
+  ProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: app.handler
+      Events:
+        Me:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /me
+            Method: get
+        Admin:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /admin
+            Method: get
+        Health:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /health
+            Method: get
+            Auth:
+              Authorizer: NONE                 # ...except this public one
+
+Outputs:
+  ApiUrl:
+    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.${AWS::URLSuffix}/dev"
+  UserPoolId:
+    Value: !Ref UserPool
+  ClientId:
+    Value: !Ref UserPoolClient
+  FunctionName:
+    Value: !Ref ProfileFunction

@@ -1,0 +1,15 @@
+{
+  "SamplingRule": {
+    "RuleName": "dva-lab05-all-checkouts",
+    "Priority": 100,
+    "FixedRate": 1.0,
+    "ReservoirSize": 5,
+    "ServiceName": "*",
+    "ServiceType": "*",
+    "Host": "*",
+    "HTTPMethod": "POST",
+    "URLPath": "*",
+    "ResourceARN": "*",
+    "Version": 1
+  }
+}
