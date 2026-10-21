@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run awslings:*)",
+      "Bash(uv run python scripts/check_exercises.py:*)",
+      "Bash(uv run pytest:*)",
+      "Bash(uv sync:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(date:*)"
+    ]
+  }
+}
