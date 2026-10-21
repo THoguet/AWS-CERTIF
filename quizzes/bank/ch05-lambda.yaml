@@ -10,17 +10,17 @@ questions:
       retries, the team wants the original event AND details about the error (stack trace, attempt count) sent
       to an SQS queue for analysis. What should they configure?
     options:
-      A: "An on-failure destination for asynchronous invocations, pointing to the SQS queue."
-      B: "A dead-letter queue on the function."
+      A: "An event source mapping from the queue to the function."
+      B: "An on-failure destination for asynchronous invocations, pointing to the SQS queue."
       C: "A redrive policy on the SQS queue."
-      D: "An event source mapping from the queue to the function."
-    answer: [A]
+      D: "A dead-letter queue on the function."
+    answer: [B]
     explanation: |
       Destinations send an invocation record with the request payload and the response or error context.
       They work for on-success and on-failure, to SQS, SNS, Lambda, EventBridge (and S3 for failures).
-      B: a DLQ receives only the original event, without error details.
+      A makes the queue a trigger, not a failure target.
       C is a queue setting for messages consumed from that queue.
-      D makes the queue a trigger, not a failure target.
+      D: a DLQ receives only the original event, without error details.
     refs: [book/src/ch05-lambda.md]
 
   - id: lambda-002
@@ -31,11 +31,11 @@ questions:
       With default settings, how many times in total does Lambda attempt to run an asynchronous invocation
       whose code keeps throwing an exception?
     options:
-      A: "3 attempts (the first one plus 2 retries)"
-      B: "1 attempt, no retries"
+      A: "1 attempt, no retries"
+      B: "3 attempts (the first one plus 2 retries)"
       C: "2 attempts"
       D: "Until the event is 6 hours old, with no limit on attempts"
-    answer: [A]
+    answer: [B]
     explanation: |
       Asynchronous invocations are retried twice by default (configurable 0–2), so 3 attempts in total. The
       maximum event age (up to 6 h) also limits how long events can wait, for example while throttled.
@@ -51,16 +51,16 @@ questions:
       predictable latency?
     options:
       A: "Configure provisioned concurrency on an alias, scheduled with Application Auto Scaling before 9:00 AM."
-      B: "Set reserved concurrency to the expected peak."
-      C: "Increase the function timeout."
-      D: "Invoke the function once per hour with a scheduled EventBridge rule."
+      B: "Invoke the function once per hour with a scheduled EventBridge rule."
+      C: "Set reserved concurrency to the expected peak."
+      D: "Increase the function timeout."
     answer: [A]
     explanation: |
       Provisioned concurrency keeps execution environments initialized, which removes cold starts for that
       capacity. Scheduling it before the peak controls cost. SnapStart would also help Java cold starts.
-      B reserves capacity but does not pre-warm it.
-      C is unrelated to latency.
-      D warms only one environment.
+      B warms only one environment.
+      C reserves capacity but does not pre-warm it.
+      D is unrelated to latency.
     refs: [book/src/ch05-lambda.md]
 
   - id: lambda-004
@@ -72,16 +72,16 @@ questions:
       connections. During spikes the function scales to hundreds of concurrent executions and overwhelms the
       database. Which configuration limits the impact with the LEAST effort?
     options:
-      A: "Set the function's reserved concurrency to 50 (and buffer requests in SQS if they must not be rejected)."
+      A: "Reduce the function timeout to 1 second."
       B: "Configure provisioned concurrency of 50."
-      C: "Increase the function's memory."
-      D: "Reduce the function timeout to 1 second."
-    answer: [A]
+      C: "Set the function's reserved concurrency to 50 (and buffer requests in SQS if they must not be rejected)."
+      D: "Increase the function's memory."
+    answer: [C]
     explanation: |
       Reserved concurrency caps the number of concurrent executions of the function, so it never opens more
       than 50 connections (RDS Proxy is another good option).
+      A and D do not limit concurrency.
       B pre-warms but does not cap.
-      C and D do not limit concurrency.
     refs: [book/src/ch05-lambda.md]
 
   - id: lambda-005
@@ -93,17 +93,17 @@ questions:
       with an average duration of 4 seconds. Other functions use about 400 concurrent executions at the same
       time. What will happen to function A?
     options:
-      A: "It needs about 800 concurrent executions, so the account exceeds 1,000 and some invocations are throttled."
+      A: "Invocations are queued for up to 15 minutes, then executed."
       B: "It needs 200 concurrent executions, so there is no problem."
-      C: "Lambda automatically raises the account quota as needed."
-      D: "Invocations are queued for up to 15 minutes, then executed."
-    answer: [A]
+      C: "It needs about 800 concurrent executions, so the account exceeds 1,000 and some invocations are throttled."
+      D: "Lambda automatically raises the account quota as needed."
+    answer: [C]
     explanation: |
       Concurrency ≈ 200 req/s × 4 s = 800. With 400 used elsewhere that totals 1,200, above the default 1,000
       per Region, so synchronous callers get 429 errors. Request a quota increase or reduce the duration.
+      A is not how synchronous throttling works.
       B ignores duration.
-      C: quota increases are requested.
-      D is not how synchronous throttling works.
+      D: quota increases are requested.
     refs: [book/src/ch05-lambda.md]
 
   - id: lambda-006
@@ -116,15 +116,15 @@ questions:
       FIRST?
     options:
       A: "Set the queue's visibility timeout to at least 6 times the function timeout (30 minutes)."
-      B: "Reduce the batch size to 1."
-      C: "Switch the queue to long polling."
-      D: "Enable SQS server-side encryption."
+      B: "Enable SQS server-side encryption."
+      C: "Reduce the batch size to 1."
+      D: "Switch the queue to long polling."
     answer: [A]
     explanation: |
       Messages become visible again after 30 seconds, while the function is still processing them, so other
       invocations receive them. AWS recommends a visibility timeout of at least 6× the function timeout.
-      B does not fix the timeout mismatch.
-      C and D are unrelated.
+      B and D are unrelated.
+      C does not fix the timeout mismatch.
     refs: [book/src/ch05-lambda.md, book/src/ch09-messaging.md]
 
   - id: lambda-007
@@ -137,15 +137,15 @@ questions:
       solution fixes this?
     options:
       A: "Enable ReportBatchItemFailures on the event source mapping and return the IDs of failed messages in batchItemFailures."
-      B: "Set the batch size to 10,000."
+      B: "Configure an on-failure destination for asynchronous invocations."
       C: "Catch the exception and return success for the whole batch."
-      D: "Configure an on-failure destination for asynchronous invocations."
+      D: "Set the batch size to 10,000."
     answer: [A]
     explanation: |
       Partial batch responses tell Lambda which messages failed. Only those return to the queue.
-      B makes the problem worse.
+      B applies to asynchronous invocations, not to SQS event source mappings.
       C loses the invalid message without any record.
-      D applies to asynchronous invocations, not to SQS event source mappings.
+      D makes the problem worse.
     refs: [book/src/ch05-lambda.md]
 
   - id: lambda-008
@@ -157,16 +157,16 @@ questions:
       After attaching the function to the private subnets, the third-party calls time out. Which change is
       required?
     options:
-      A: "Route the private subnets' outbound traffic (0.0.0.0/0) through a NAT gateway located in a public subnet."
-      B: "Attach the function to a public subnet instead."
-      C: "Add an interface VPC endpoint for the third-party API."
-      D: "Assign an Elastic IP to the function."
-    answer: [A]
+      A: "Add an interface VPC endpoint for the third-party API."
+      B: "Route the private subnets' outbound traffic (0.0.0.0/0) through a NAT gateway located in a public subnet."
+      C: "Assign an Elastic IP to the function."
+      D: "Attach the function to a public subnet instead."
+    answer: [B]
     explanation: |
       VPC-attached functions have no internet access, so outbound internet traffic needs a NAT gateway.
-      B: Lambda ENIs never receive public IPs, so a public subnet does not help.
-      C: VPC endpoints exist for AWS services, not arbitrary public APIs.
-      D: you cannot assign Elastic IPs to functions.
+      A: VPC endpoints exist for AWS services, not arbitrary public APIs.
+      C: you cannot assign Elastic IPs to functions.
+      D: Lambda ENIs never receive public IPs, so a public subnet does not help.
     refs: [book/src/ch05-lambda.md, book/src/ch01-aws-foundations.md]
 
   - id: lambda-009
@@ -177,16 +177,16 @@ questions:
       A video transcoding job takes 20 to 40 minutes per file. A developer wants to trigger it when a file
       lands in S3. Which approach is valid?
     options:
-      A: "Start an ECS Fargate task (for example through Step Functions or EventBridge) to run the transcoding."
-      B: "Run it in Lambda with the timeout set to 40 minutes."
-      C: "Run it in Lambda and rely on automatic retries to continue where it stopped."
+      A: "Run it in Lambda and rely on automatic retries to continue where it stopped."
+      B: "Start an ECS Fargate task (for example through Step Functions or EventBridge) to run the transcoding."
+      C: "Run it in Lambda with the timeout set to 40 minutes."
       D: "Run it in Lambda with 10 GB of memory so it finishes within 15 minutes."
-    answer: [A]
+    answer: [B]
     explanation: |
       Lambda's maximum timeout is 15 minutes. Long jobs belong on containers (Fargate), Batch or EC2,
       orchestrated by Step Functions or EventBridge.
-      B is impossible.
-      C restarts from scratch each time.
+      A restarts from scratch each time.
+      C is impossible.
       D is not guaranteed and does not fit a 40-minute job.
     refs: [book/src/ch05-lambda.md]
 
@@ -198,17 +198,17 @@ questions:
       Ten Python Lambda functions use the same internal library and the same large third-party dependencies.
       The team wants to manage these dependencies once and keep function packages small. What should they use?
     options:
-      A: "A Lambda layer containing the shared libraries, referenced by every function."
-      B: "An S3 bucket the functions download libraries from at each invocation."
-      C: "Environment variables containing the library code."
-      D: "A separate Lambda function per library, invoked synchronously."
-    answer: [A]
+      A: "An S3 bucket the functions download libraries from at each invocation."
+      B: "A Lambda layer containing the shared libraries, referenced by every function."
+      C: "A separate Lambda function per library, invoked synchronously."
+      D: "Environment variables containing the library code."
+    answer: [B]
     explanation: |
       Layers package shared code and dependencies, extracted under /opt. A function can use up to 5 layers,
       within the 250 MB unzipped limit.
-      B adds latency at every invocation.
-      C: environment variables are limited to 4 KB in total.
-      D adds latency and cost.
+      A adds latency at every invocation.
+      C adds latency and cost.
+      D: environment variables are limited to 4 KB in total.
     refs: [book/src/ch05-lambda.md, book/src/ch16-sam-serverless-deploy.md]
 
   - id: lambda-011
@@ -219,15 +219,15 @@ questions:
       A machine learning inference function needs dependencies totaling 1.8 GB unzipped. How should it be
       packaged?
     options:
-      A: "As a container image stored in Amazon ECR (up to 10 GB)."
-      B: "As a .zip archive uploaded through S3."
-      C: "Split across 5 Lambda layers."
-      D: "As a .zip archive with maximum compression."
-    answer: [A]
+      A: "As a .zip archive with maximum compression."
+      B: "As a container image stored in Amazon ECR (up to 10 GB)."
+      C: "As a .zip archive uploaded through S3."
+      D: "Split across 5 Lambda layers."
+    answer: [B]
     explanation: |
       Container images can be up to 10 GB. Zip packages, layers included, are limited to 250 MB unzipped,
       however they are uploaded or compressed.
-      B, C and D still hit the 250 MB unzipped limit.
+      A, C and D still hit the 250 MB unzipped limit.
     refs: [book/src/ch05-lambda.md]
 
   - id: lambda-012
@@ -238,17 +238,17 @@ questions:
       A CPU-intensive image processing function configured with 128 MB of memory takes 9 seconds per image. How
       can the developer MOST likely reduce both latency and cost per invocation?
     options:
-      A: "Increase the memory setting, which also allocates more CPU, and measure the duration again (e.g. with Lambda Power Tuning)."
-      B: "Increase the timeout."
-      C: "Add provisioned concurrency."
-      D: "Move the function into a VPC."
-    answer: [A]
+      A: "Increase the timeout."
+      B: "Increase the memory setting, which also allocates more CPU, and measure the duration again (e.g. with Lambda Power Tuning)."
+      C: "Move the function into a VPC."
+      D: "Add provisioned concurrency."
+    answer: [B]
     explanation: |
       CPU scales with memory. A CPU-bound function often runs proportionally faster with more memory, so the
       cost (GB-seconds) stays similar or drops while latency improves.
-      B only allows longer runs.
-      C addresses cold starts.
-      D adds nothing.
+      A only allows longer runs.
+      C adds nothing.
+      D addresses cold starts.
     refs: [book/src/ch05-lambda.md, book/src/ch23-optimization.md]
 
   - id: lambda-013
@@ -279,17 +279,17 @@ questions:
       A developer configured an S3 event notification targeting a Lambda function with the AWS CLI. The
       configuration call fails, saying it cannot validate the destination configuration. What is missing?
     options:
-      A: "A resource-based policy on the function allowing s3.amazonaws.com to invoke it (lambda add-permission with the bucket ARN as source)."
-      B: "s3:GetObject permission in the function's execution role."
-      C: "An event source mapping between the bucket and the function."
-      D: "Versioning on the bucket."
-    answer: [A]
+      A: "Versioning on the bucket."
+      B: "A resource-based policy on the function allowing s3.amazonaws.com to invoke it (lambda add-permission with the bucket ARN as source)."
+      C: "s3:GetObject permission in the function's execution role."
+      D: "An event source mapping between the bucket and the function."
+    answer: [B]
     explanation: |
       Services that push events (S3, SNS, EventBridge, API Gateway...) need permission in the function's
       resource-based policy.
-      B is needed to read objects later, but does not authorize the invocation.
-      C is only for poll-based sources.
-      D is unrelated.
+      A is unrelated.
+      C is needed to read objects later, but does not authorize the invocation.
+      D is only for poll-based sources.
     refs: [book/src/ch05-lambda.md]
 
   - id: lambda-015
@@ -302,17 +302,17 @@ questions:
       skip past the bad record while keeping it for analysis? (Choose TWO.)
     options:
       A: "Enable BisectBatchOnFunctionError and set MaximumRetryAttempts (or MaximumRecordAgeInSeconds) on the event source mapping."
-      B: "Configure an on-failure destination (SQS, SNS or S3) on the event source mapping."
-      C: "Increase the stream retention to 365 days."
-      D: "Enable ReportBatchItemFailures for an SQS queue."
-      E: "Switch the stream to enhanced fan-out."
-    answer: [A, B]
+      B: "Enable ReportBatchItemFailures for an SQS queue."
+      C: "Switch the stream to enhanced fan-out."
+      D: "Increase the stream retention to 365 days."
+      E: "Configure an on-failure destination (SQS, SNS or S3) on the event source mapping."
+    answer: [A, E]
     explanation: |
       Bisecting isolates the bad record, and retry or age limits stop endless retries. The on-failure
       destination keeps metadata about the discarded batch.
-      C keeps data longer but does not unblock the shard.
-      D applies to SQS.
-      E adds read throughput, not error handling.
+      B applies to SQS.
+      C adds read throughput, not error handling.
+      D keeps data longer but does not unblock the shard.
     refs: [book/src/ch05-lambda.md, book/src/ch10-streaming-orchestration.md]
 
   - id: lambda-016
@@ -323,17 +323,17 @@ questions:
       A service invokes a Lambda function synchronously with the AWS SDK. During a traffic spike, some calls fail
       immediately with TooManyRequestsException. What does this indicate?
     options:
-      A: "The function hit a concurrency limit (account or reserved concurrency) and the invocations were throttled."
-      B: "The function's code raised an unhandled exception."
-      C: "The payload exceeded 6 MB."
-      D: "The function's timeout is too short."
-    answer: [A]
+      A: "The payload exceeded 6 MB."
+      B: "The function's timeout is too short."
+      C: "The function's code raised an unhandled exception."
+      D: "The function hit a concurrency limit (account or reserved concurrency) and the invocations were throttled."
+    answer: [D]
     explanation: |
       Throttled synchronous invocations return HTTP 429 TooManyRequestsException. Retry with backoff, and
       raise limits or adjust reserved concurrency.
-      B returns a function error.
-      C returns RequestEntityTooLargeException.
-      D results in a timeout error.
+      A returns RequestEntityTooLargeException.
+      B results in a timeout error.
+      C returns a function error.
     refs: [book/src/ch05-lambda.md]
 
   - id: lambda-017
@@ -344,17 +344,17 @@ questions:
       A function downloads a 2 GB reference file to /tmp before processing and fails with
       "No space left on device". What is the simplest fix?
     options:
-      A: "Increase the function's ephemeral storage (/tmp) above the 512 MB default, up to 10,240 MB."
-      B: "Increase the memory to 10 GB."
-      C: "Mount the file from S3 with a layer."
-      D: "Write the file to the function's environment variables."
-    answer: [A]
+      A: "Increase the memory to 10 GB."
+      B: "Write the file to the function's environment variables."
+      C: "Increase the function's ephemeral storage (/tmp) above the 512 MB default, up to 10,240 MB."
+      D: "Mount the file from S3 with a layer."
+    answer: [C]
     explanation: |
       Ephemeral storage is configurable from 512 MB to 10 GB, independently of memory. A warm environment can
       also reuse the downloaded file.
-      B does not increase /tmp.
-      C: layers are limited to 250 MB unzipped with the function.
-      D: environment variables are limited to 4 KB.
+      A does not increase /tmp.
+      B: environment variables are limited to 4 KB.
+      D: layers are limited to 250 MB unzipped with the function.
     refs: [book/src/ch05-lambda.md]
 
   - id: lambda-018
@@ -366,16 +366,16 @@ questions:
       unpredictable, and the team wants to reduce cold start latency WITHOUT paying for idle pre-initialized
       environments. What should they enable?
     options:
-      A: "Lambda SnapStart on published versions of the function."
+      A: "A larger /tmp."
       B: "Provisioned concurrency."
-      C: "Reserved concurrency."
-      D: "A larger /tmp."
-    answer: [A]
+      C: "Lambda SnapStart on published versions of the function."
+      D: "Reserved concurrency."
+    answer: [C]
     explanation: |
       SnapStart (Java, Python, .NET) restores execution environments from a snapshot taken after
       initialization, which reduces init time without the always-on cost of provisioned concurrency.
+      A and D do not reduce cold starts.
       B removes cold starts but is paid even when idle.
-      C and D do not reduce cold starts.
     refs: [book/src/ch05-lambda.md]
 
   - id: lambda-019
@@ -387,15 +387,15 @@ questions:
       provider (the function verifies the provider's signature itself). They need no throttling, usage plans,
       or request validation and want the simplest setup. What should they use?
     options:
-      A: "A Lambda function URL with auth type NONE."
-      B: "An API Gateway REST API with a Lambda authorizer."
-      C: "An Application Load Balancer with a Lambda target and Cognito authentication."
-      D: "An Amazon CloudFront distribution with Lambda@Edge."
-    answer: [A]
+      A: "An API Gateway REST API with a Lambda authorizer."
+      B: "An Application Load Balancer with a Lambda target and Cognito authentication."
+      C: "An Amazon CloudFront distribution with Lambda@Edge."
+      D: "A Lambda function URL with auth type NONE."
+    answer: [D]
     explanation: |
       Function URLs give a dedicated HTTPS endpoint with almost no configuration. The function authenticates
       requests by verifying the webhook signature.
-      B, C and D work but add components the team does not need.
+      A, B and C work but add components the team does not need.
     refs: [book/src/ch05-lambda.md, book/src/ch06-api-gateway-appsync.md]
 
   - id: lambda-020
@@ -407,16 +407,16 @@ questions:
       "heartbeat" and are discarded by the function immediately. How can the developer reduce cost with the
       LEAST code change?
     options:
-      A: "Add filter criteria to the event source mapping so that only messages with the relevant type invoke the function."
-      B: "Increase the batch size."
+      A: "Reduce the function's memory."
+      B: "Add filter criteria to the event source mapping so that only messages with the relevant type invoke the function."
       C: "Use a FIFO queue."
-      D: "Reduce the function's memory."
-    answer: [A]
+      D: "Increase the batch size."
+    answer: [B]
     explanation: |
       Event filtering on the event source mapping evaluates messages before invoking the function, so
       non-matching messages do not cost invocations. Note that filtered-out SQS messages are deleted from the
       queue, which is fine for discarded heartbeats.
-      B reduces invocations a little but still processes heartbeats.
+      A might slow processing without addressing the waste.
       C is unrelated.
-      D might slow processing without addressing the waste.
+      D reduces invocations a little but still processes heartbeats.
     refs: [book/src/ch05-lambda.md, book/src/ch23-optimization.md]

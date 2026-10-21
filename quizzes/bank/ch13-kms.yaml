@@ -1,0 +1,250 @@
+chapter: ch13
+topic: kms
+questions:
+  - id: kms-001
+    domain: 2
+    task: "2.2"
+    difficulty: 2
+    question: |
+      An application must encrypt 50 MB files with a KMS key before storing them in a third-party storage system.
+      Calling kms:Encrypt with the file content fails. What should the developer do?
+    options:
+      A: "Split the file into 4 KB chunks and call Encrypt for each chunk."
+      B: "Request a quota increase for the Encrypt payload size."
+      C: "Call GenerateDataKey, encrypt the file locally with the plaintext data key, then store the encrypted data key with the ciphertext (envelope encryption)."
+      D: "Use an asymmetric KMS key, which has no size limit."
+    answer: [C]
+    explanation: |
+      Encrypt accepts at most 4 KB. Envelope encryption encrypts locally with a data key and protects that
+      key with KMS. The AWS Encryption SDK implements it for you.
+      A is extremely slow and costly.
+      B: the limit is fixed.
+      D: asymmetric keys have even smaller limits.
+    refs: [book/src/ch13-kms-encryption.md]
+
+  - id: kms-002
+    domain: 2
+    task: "2.2"
+    difficulty: 2
+    question: |
+      A role in account B must decrypt data encrypted with a customer managed KMS key that lives in account A.
+      Which configurations are required? (Choose TWO.)
+    options:
+      A: "An IAM policy in account B allows the role to call kms:Decrypt on the key's ARN."
+      B: "The key policy in account A allows account B (or the specific role) to use kms:Decrypt."
+      C: "Account B creates an alias pointing to the key."
+      D: "The key is an AWS managed key."
+      E: "The key is replicated to account B with a multi-Region key."
+    answer: [A, B]
+    explanation: |
+      Cross-account key use requires the key policy in the owning account AND an IAM policy in the caller's
+      account.
+      C: aliases cannot point to keys in other accounts.
+      D: AWS managed keys cannot be shared across accounts.
+      E: multi-Region keys replicate across Regions, not accounts.
+    refs: [book/src/ch13-kms-encryption.md]
+
+  - id: kms-003
+    domain: 2
+    task: "2.2"
+    difficulty: 2
+    question: |
+      A role's IAM policy grants kms:Decrypt on a customer managed key, yet the role receives AccessDenied when it
+      calls Decrypt. The key policy was written by another team. What is the MOST likely cause?
+    options:
+      A: "IAM policies cannot reference KMS keys."
+      B: "The key is scheduled for deletion."
+      C: "The key policy neither allows the role nor delegates to IAM policies through the account root principal."
+      D: "Decrypt requires the KeyId parameter."
+    answer: [C]
+    explanation: |
+      A KMS key can only be used if its key policy allows it, either directly or with the root statement that
+      enables IAM policies. An IAM policy alone is not enough.
+      A is false.
+      B would return KMSInvalidStateException.
+      D: symmetric ciphertexts embed the key ID.
+    refs: [book/src/ch13-kms-encryption.md]
+
+  - id: kms-004
+    domain: 2
+    task: "2.2"
+    difficulty: 2
+    question: |
+      A healthcare app encrypts each patient's record with the same KMS key. The security team wants to make sure
+      a ciphertext copied from one patient's record cannot be decrypted in the context of another patient, and to
+      see the patient ID in audit logs. What should the developer use?
+    options:
+      A: "An encryption context containing the patient ID on Encrypt/GenerateDataKey, and the same context on Decrypt."
+      B: "A different KMS key per patient."
+      C: "Base64-encode the patient ID into the ciphertext."
+      D: "S3 Object Lock."
+    answer: [A]
+    explanation: |
+      The encryption context is additional authenticated data. Decryption fails without the exact same context,
+      and the context appears in CloudTrail. Never put secrets in it.
+      B is costly and hard to manage.
+      C provides no cryptographic binding.
+      D is unrelated.
+    refs: [book/src/ch13-kms-encryption.md]
+
+  - id: kms-005
+    domain: 2
+    task: "2.2"
+    difficulty: 1
+    question: |
+      A customer managed KMS key has automatic rotation enabled. What happens to data encrypted before a rotation?
+    options:
+      A: "Its key ID changes and applications must be updated."
+      B: "It can still be decrypted, because KMS keeps the previous key material and selects it automatically."
+      C: "It must be re-encrypted manually before the rotation, or it becomes unreadable."
+      D: "It is re-encrypted automatically in place by KMS."
+    answer: [B]
+    explanation: |
+      Automatic rotation creates new key material for new encryptions but keeps old material. The key ID and
+      ARN do not change.
+      A and C are false.
+      D: KMS does not touch your stored ciphertexts.
+    refs: [book/src/ch13-kms-encryption.md]
+
+  - id: kms-006
+    domain: 2
+    task: "2.2"
+    difficulty: 2
+    question: |
+      Compliance requires a KMS key whose policy the company controls, whose usage is auditable, that can be
+      disabled at any time, and that rotates yearly. Which key type meets all requirements?
+    options:
+      A: "A customer managed key with automatic rotation enabled."
+      B: "An AWS owned key."
+      C: "An AWS managed key such as aws/s3."
+      D: "An imported key material key with automatic rotation."
+    answer: [A]
+    explanation: |
+      Customer managed keys have editable key policies, can be disabled, support automatic rotation (yearly by
+      default), and all usage is logged in CloudTrail.
+      B is not visible to you.
+      C: AWS managed key policies cannot be changed and the keys cannot be disabled.
+      D: imported key material cannot rotate automatically.
+    refs: [book/src/ch13-kms-encryption.md]
+
+  - id: kms-007
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      A high-traffic service decrypts a KMS-encrypted configuration value on every request and starts receiving
+      ThrottlingException from KMS. Which solutions reduce KMS calls? (Choose TWO.)
+    options:
+      A: "Use an encryption context with more pairs."
+      B: "Use data key caching from the AWS Encryption SDK when encrypting many messages."
+      C: "Disable automatic key rotation."
+      D: "Cache the decrypted value (or the data key) in memory for a short period."
+      E: "Switch to a new KMS key for each request."
+    answer: [B, D]
+    explanation: |
+      KMS cryptographic operations have request quotas. Caching decrypted values or data keys reduces calls (and
+      cost). You can also request a quota increase.
+      A and C have no effect on quotas.
+      E adds calls.
+    refs: [book/src/ch13-kms-encryption.md]
+
+  - id: kms-008
+    domain: 2
+    task: "2.2"
+    difficulty: 1
+    question: |
+      A team needs a free, publicly trusted TLS certificate for api.example.com on an Application Load Balancer,
+      and wants renewal handled automatically. Which service should they use?
+    options:
+      A: "AWS Private CA."
+      B: "A self-signed certificate created with OpenSSL."
+      C: "AWS Certificate Manager (ACM) public certificate with DNS validation."
+      D: "AWS KMS asymmetric key."
+    answer: [C]
+    explanation: |
+      ACM issues free public certificates for integrated services (ELB, CloudFront, API Gateway) and renews them
+      automatically. DNS validation is the easiest.
+      A issues private certificates (paid) not trusted by browsers.
+      B is not trusted.
+      D is not a certificate.
+    refs: [book/src/ch13-kms-encryption.md]
+
+  - id: kms-009
+    domain: 2
+    task: "2.2"
+    difficulty: 2
+    question: |
+      A developer requested an ACM certificate in eu-west-3 for a CloudFront distribution, but the certificate
+      does not appear in the CloudFront console. What is the problem?
+    options:
+      A: "Certificates used by CloudFront must be requested or imported in us-east-1 (N. Virginia)."
+      B: "CloudFront does not support ACM certificates."
+      C: "The certificate must be exported and uploaded to CloudFront."
+      D: "The distribution must be in the same Region as the certificate."
+    answer: [A]
+    explanation: |
+      CloudFront (and edge-optimized API Gateway) only use ACM certificates from us-east-1.
+      B is false.
+      C: public ACM certificates cannot be exported.
+      D: distributions are global.
+    refs: [book/src/ch13-kms-encryption.md]
+
+  - id: kms-010
+    domain: 2
+    task: "2.2"
+    difficulty: 2
+    question: |
+      Microservices inside the company must authenticate each other with mutual TLS using certificates from an
+      internal certificate authority that the company controls. Which service fits?
+    options:
+      A: "ACM public certificates."
+      B: "Amazon Cognito."
+      C: "IAM server certificates."
+      D: "AWS Private CA (with ACM to issue and renew private certificates)."
+    answer: [D]
+    explanation: |
+      AWS Private CA creates and manages a private certificate hierarchy for internal TLS, mTLS, IoT and service
+      meshes.
+      A: public certificates are for internet-facing domains.
+      B handles user identities.
+      C is legacy and not a CA.
+    refs: [book/src/ch13-kms-encryption.md]
+
+  - id: kms-011
+    domain: 2
+    task: "2.2"
+    difficulty: 2
+    question: |
+      Sensitive fields must be encrypted inside the application BEFORE being sent to any AWS service, so that AWS
+      only ever stores ciphertext. Which approach is appropriate?
+    options:
+      A: "TLS 1.2 for all connections."
+      B: "Client-side encryption using the AWS Encryption SDK with KMS-generated data keys."
+      C: "DynamoDB encryption at rest with an AWS owned key."
+      D: "S3 default encryption with SSE-S3."
+    answer: [B]
+    explanation: |
+      Client-side encryption protects data before it leaves the application.
+      A protects data in transit only.
+      C and D are server-side encryption: the service sees plaintext before encrypting it at rest.
+    refs: [book/src/ch13-kms-encryption.md]
+
+  - id: kms-012
+    domain: 2
+    task: "2.2"
+    difficulty: 2
+    question: |
+      A KMS key protects data that may still be needed, but the team believes the key is no longer in use and
+      wants to delete it safely. What is the recommended approach?
+    options:
+      A: "Remove the alias. The key is deleted automatically after 24 hours."
+      B: "Rotate the key, which deletes the old key material."
+      C: "Delete the key immediately with no waiting period."
+      D: "Disable the key first and monitor CloudTrail for failed usage, then schedule deletion with a waiting period of 7 to 30 days."
+    answer: [D]
+    explanation: |
+      Deletion is irreversible and makes the ciphertexts unrecoverable. Disabling first reveals hidden
+      dependencies. KMS enforces a 7–30 day waiting period, during which deletion can be cancelled.
+      A and B are false.
+      C is impossible.
+    refs: [book/src/ch13-kms-encryption.md]

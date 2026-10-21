@@ -38,8 +38,8 @@ optional labs on a real AWS account, and their progress. This file is your stand
   defaults. If unsure, or if AWS changed since the exam guide (see below), say so and point to the
   official docs or FAQs. Prefer "the exam expects X" when the exam lags behind AWS.
 - **Questions you write must be original**: realistic scenario, 4 options with one answer, or
-  5+ options with "(Choose TWO.)". Plausible distractors, one clearly best answer. Never reproduce
-  real exam questions or "dumps".
+  5+ options with "(Choose TWO.)". Plausible distractors, one clearly best answer, and vary which
+  letter is correct (not always A). Never reproduce real exam questions or "dumps".
 - **Spaced repetition**: when a topic is weak, put it in the PROGRESS.md review queue (+1, +3, +7
   days) and bring it back in later sessions.
 - **Be honest about readiness**: target ≥ 80% on mock exams and ≥ 70% in each domain.

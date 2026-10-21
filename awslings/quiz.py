@@ -76,6 +76,7 @@ def validate_bank(root: Path) -> list[str]:
     """Return a list of problems found in the question bank (empty list = OK)."""
     problems = []
     seen = {}
+    single_letters = Counter()
     for path in sorted((root / "quizzes" / "bank").glob("*.yaml")):
         try:
             doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
@@ -108,6 +109,17 @@ def validate_bank(root: Path) -> list[str]:
                 problems.append(f"{where}: multi-answer question must say '(Choose TWO.)' or '(Choose THREE.)'")
             if choose and len(answer) != {"TWO": 2, "THREE": 3}[choose.group(1)]:
                 problems.append(f"{where}: '(Choose {choose.group(1)}.)' does not match {len(answer)} answers")
+            if len(answer) == 1 and len(options) == 4:
+                single_letters[str(answer[0])] += 1
+    # The correct answer must not sit in the same position most of the time, or learners pick up the pattern.
+    total = sum(single_letters.values())
+    if total >= 40:
+        letter, count = single_letters.most_common(1)[0]
+        if count / total > 0.4:
+            problems.append(
+                f"correct answers are unbalanced: {count}/{total} single-answer questions use {letter} "
+                f"({dict(sorted(single_letters.items()))}). Vary the position of the correct option."
+            )
     return problems
 
 
@@ -197,8 +209,12 @@ def select_mock(bank: list[Question], history: list[dict], count: int = EXAM_QUE
     for q in bank:
         by_domain[q.domain].append(q)
     last = last_result_by_question(history)
-    targets = {d: round(count * w) for d, (_, w) in DOMAINS.items()}
-    targets[1] += count - sum(targets.values())  # rounding remainder goes to the biggest domain
+    # Floor each domain's share, then give the remaining questions to the heaviest domains
+    # (65 questions -> 21/17/16/11).
+    targets = {d: int(count * w) for d, (_, w) in DOMAINS.items()}
+    heaviest = sorted(DOMAINS, key=lambda d: -DOMAINS[d][1])
+    for d in heaviest[: count - sum(targets.values())]:
+        targets[d] += 1
     chosen = []
     for d, n in targets.items():
         pool = by_domain.get(d, [])

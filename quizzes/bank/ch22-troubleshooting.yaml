@@ -1,0 +1,288 @@
+chapter: ch22
+topic: troubleshooting
+questions:
+  - id: troubleshooting-001
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      An EC2 RunInstances call made by a script fails with UnauthorizedOperation and a long encoded authorization
+      failure message. How can the developer see which policy element caused the denial?
+    options:
+      A: "Retry the call with exponential backoff."
+      B: "Open a support case, because only AWS can read the message."
+      C: "Run aws sts decode-authorization-message --encoded-message <message> with a principal allowed to call sts:DecodeAuthorizationMessage."
+      D: "Base64-decode the message."
+    answer: [C]
+    explanation: |
+      Some services, such as EC2, return encoded details about denied requests, and STS decodes them into the
+      matched statements, conditions and context.
+      A: authorization errors do not go away by retrying.
+      B is unnecessary.
+      D: the message is encrypted, not just encoded.
+    refs: [book/src/ch22-troubleshooting.md]
+
+  - id: troubleshooting-002
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      Fargate tasks in private subnets stop with CannotPullContainerError when pulling an image from a private ECR
+      repository in the same Region. Which issues can cause this? (Choose TWO.)
+    options:
+      A: "The task execution role lacks ECR permissions such as ecr:GetAuthorizationToken and ecr:BatchGetImage."
+      B: "The subnets have neither a NAT gateway nor VPC endpoints for ECR (ecr.api and ecr.dkr) and S3."
+      C: "The service's desired count is higher than 1."
+      D: "The task role lacks DynamoDB permissions."
+      E: "The container's health check command is wrong."
+    answer: [A, B]
+    explanation: |
+      Pulling an image needs a network path to ECR (image layers are served from S3) and execution role
+      permissions. A wrong image tag causes the same error.
+      C is unrelated.
+      D affects the application after it starts.
+      E fails after the image has been pulled.
+    refs: [book/src/ch22-troubleshooting.md, book/src/ch18-beanstalk-containers.md]
+
+  - id: troubleshooting-003
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      A client calling a REST API receives 403 {"message":"Missing Authentication Token"}. The API has no
+      authorizer, and other paths work. What is the MOST likely cause?
+    options:
+      A: "The request targets a resource path or method that does not exist in the deployed stage (for example a typo or a missing stage name in the URL)."
+      B: "The API key is invalid."
+      C: "The Lambda function lacks permission to write logs."
+      D: "The client must send AWS access keys."
+    answer: [A]
+    explanation: |
+      API Gateway returns this misleading message for unknown routes. Check the URL, the stage name and whether
+      the latest changes were deployed to the stage.
+      B would return a different 403 message ({"message":"Forbidden"}).
+      C does not affect routing.
+      D is only needed with IAM authorization.
+    refs: [book/src/ch22-troubleshooting.md]
+
+  - id: troubleshooting-004
+    domain: 4
+    task: "4.1"
+    difficulty: 1
+    question: |
+      A stack update fails, and the Events tab shows a dozen UPDATE_FAILED and rollback events. Which event should
+      the developer read first to find the root cause?
+    options:
+      A: "The first (oldest) failure event of the operation."
+      B: "Any event of the stack's AWS::CloudFormation::Stack resource."
+      C: "The most recent event."
+      D: "The UPDATE_ROLLBACK_COMPLETE event."
+    answer: [A]
+    explanation: |
+      The first failure usually triggers the others (cancelled resources and rollback). The console lists
+      events newest first, so scroll to the earliest failure.
+      B, C and D usually describe consequences.
+    refs: [book/src/ch22-troubleshooting.md]
+
+  - id: troubleshooting-005
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      Deleting a stack ends in DELETE_FAILED. The failed resource is an S3 bucket that the application filled with
+      objects. What should the developer do?
+    options:
+      A: "Add DependsOn to the bucket."
+      B: "Empty the bucket (or use a custom resource that empties it on Delete) and delete the stack again, or retain the bucket if its data must be kept."
+      C: "Wait 24 hours, because S3 deletes the objects automatically."
+      D: "Enable versioning, which allows non-empty buckets to be deleted."
+    answer: [B]
+    explanation: |
+      CloudFormation cannot delete a bucket that still contains objects (or object versions).
+      A does not change deletion.
+      C is false.
+      D makes it worse, because every object version must then be deleted.
+    refs: [book/src/ch22-troubleshooting.md, book/src/ch15-cloudformation-cdk.md]
+
+  - id: troubleshooting-006
+    domain: 4
+    task: "4.1"
+    difficulty: 1
+    question: |
+      A new Python function fails on every invocation with "Runtime.ImportModuleError: Unable to import module
+      'app': No module named 'requests'". It works on the developer's laptop. What is the cause?
+    options:
+      A: "The requests library is not included in the deployment package (or a layer) at the expected location."
+      B: "The function needs more memory."
+      C: "The execution role lacks permission to download packages."
+      D: "The function's timeout is too short."
+    answer: [A]
+    explanation: |
+      The Lambda Python runtime includes only the standard library and boto3. Dependencies must be packaged at
+      the root of the zip (pip install -t) or under python/ in a layer. A wrong handler string causes similar
+      errors.
+      B, C and D are unrelated.
+    refs: [book/src/ch22-troubleshooting.md, book/src/ch16-sam-serverless-deploy.md]
+
+  - id: troubleshooting-007
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      A function processing large images fails intermittently with "Runtime exited with error: signal: killed". Its
+      REPORT log lines show "Memory Size: 512 MB, Max Memory Used: 512 MB". What should the developer do?
+    options:
+      A: "Increase the timeout."
+      B: "Increase the function's memory setting, which also adds CPU, or reduce memory use by streaming the data."
+      C: "Add a dead-letter queue."
+      D: "Enable provisioned concurrency."
+    answer: [B]
+    explanation: |
+      Max Memory Used reaching Memory Size, with the runtime killed, means the function ran out of memory.
+      A: the function did not time out.
+      C captures failed asynchronous events but does not fix them.
+      D reduces cold starts.
+    refs: [book/src/ch22-troubleshooting.md, book/src/ch05-lambda.md]
+
+  - id: troubleshooting-008
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      During a nightly batch, an application uploading millions of objects to the logs/ prefix of a bucket receives
+      HTTP 503 Slow Down errors. Which actions help? (Choose TWO.)
+    options:
+      A: "Spread the objects across several prefixes, since request rate limits apply per prefix."
+      B: "Retry the failed requests with exponential backoff and jitter."
+      C: "Switch the bucket to the S3 Glacier storage class."
+      D: "Enable S3 Object Lock."
+      E: "Disable server-side encryption."
+    answer: [A, B]
+    explanation: |
+      S3 supports at least 3,500 write and 5,500 read requests per second per prefix, and scales gradually.
+      Backoff absorbs temporary throttling, and more prefixes multiply the available request rate.
+      C, D and E do not raise request rates.
+    refs: [book/src/ch22-troubleshooting.md, book/src/ch04-s3.md]
+
+  - id: troubleshooting-009
+    domain: 4
+    task: "4.1"
+    difficulty: 1
+    question: |
+      Users who just signed up in an app backed by a Cognito user pool get UserNotConfirmedException when they try
+      to sign in. What does this indicate?
+    options:
+      A: "The users typed a wrong password."
+      B: "The identity pool is misconfigured."
+      C: "The users have not completed the confirmation step (code sent by email or SMS). Confirm them with ConfirmSignUp, or auto-confirm in a pre sign-up trigger if appropriate."
+      D: "The app client has a client secret."
+    answer: [C]
+    explanation: |
+      Users must confirm their account before signing in, unless they are confirmed by an administrator or by
+      a pre sign-up Lambda trigger.
+      A returns NotAuthorizedException.
+      B is unrelated to user pool sign-in.
+      D causes secret hash errors.
+    refs: [book/src/ch22-troubleshooting.md, book/src/ch12-cognito.md]
+
+  - id: troubleshooting-010
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      A stack is deleted and recreated from the same template. Creation now fails with "orders already exists" for
+      an AWS::DynamoDB::Table whose TableName is set explicitly. The table has DeletionPolicy: Retain. What is the
+      cause, and what are the options?
+    options:
+      A: "The retained table still exists with that name. Remove the explicit name so CloudFormation generates one, delete or rename the old table, or import it into the new stack."
+      B: "The template needs CAPABILITY_NAMED_IAM."
+      C: "DynamoDB table names are reserved for 24 hours after deletion. Wait and retry."
+      D: "The stack must be created in a different Availability Zone."
+    answer: [A]
+    explanation: |
+      Retain keeps the resource after stack deletion, so a custom name collides on recreation. Generated names
+      avoid collisions, and resource import brings existing resources under management.
+      B concerns IAM resources.
+      C is false.
+      D: DynamoDB tables are Regional.
+    refs: [book/src/ch22-troubleshooting.md, book/src/ch15-cloudformation-cdk.md]
+
+  - id: troubleshooting-011
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      A developer writes a generic retry wrapper for AWS calls. Which errors should it retry with exponential
+      backoff? (Choose TWO.)
+    options:
+      A: "403 / AccessDeniedException"
+      B: "404 / ResourceNotFoundException"
+      C: "429 / ThrottlingException"
+      D: "503 / ServiceUnavailable"
+      E: "400 / ValidationException"
+    answer: [C, D]
+    explanation: |
+      Throttling and server-side errors are transient, so retries with backoff and jitter usually succeed.
+      A, B and E are client errors: the request or permissions must be fixed, and retrying returns the same
+      error.
+    refs: [book/src/ch22-troubleshooting.md, book/src/ch03-cli-sdk-sts.md]
+
+  - id: troubleshooting-012
+    domain: 4
+    task: "4.1"
+    difficulty: 3
+    question: |
+      A stack is stuck in UPDATE_ROLLBACK_FAILED because a resource that CloudFormation tries to restore was deleted
+      manually outside the stack. How can the developer get the stack back to a stable state?
+    options:
+      A: "Update the stack again with the same template."
+      B: "Fix the cause if possible, then use ContinueUpdateRollback, skipping the resources that cannot be rolled back if necessary."
+      C: "Wait for CloudFormation to retry the rollback automatically."
+      D: "Run drift detection, which repairs the stack."
+    answer: [B]
+    explanation: |
+      ContinueUpdateRollback retries the rollback, and ResourcesToSkip lets it skip resources that cannot be
+      restored, after which the stack returns to UPDATE_ROLLBACK_COMPLETE.
+      A: updates are not allowed in this state.
+      C: CloudFormation does not retry by itself.
+      D detects drift without fixing it.
+    refs: [book/src/ch22-troubleshooting.md, book/src/ch15-cloudformation-cdk.md]
+
+  - id: troubleshooting-013
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      A CodeBuild project was moved into a VPC to run integration tests against a private database. Since then,
+      builds hang and time out during pip install. What is the MOST likely cause?
+    options:
+      A: "Privileged mode is disabled."
+      B: "The build runs in private subnets without a route to the internet (no NAT gateway), so PyPI is unreachable."
+      C: "The buildspec version must be 0.3 in a VPC."
+      D: "The database blocks pip."
+    answer: [B]
+    explanation: |
+      VPC builds have no internet access unless the subnets route through a NAT gateway. A CodeArtifact
+      repository reachable through a VPC endpoint is another option.
+      A is needed for Docker builds.
+      C is false.
+      D is unrelated.
+    refs: [book/src/ch22-troubleshooting.md, book/src/ch17-cicd.md]
+
+  - id: troubleshooting-014
+    domain: 4
+    task: "4.1"
+    difficulty: 1
+    question: |
+      Error rates rise in several of a team's applications at the same time, in one Region, and nothing was
+      deployed. Where can the team quickly check whether an AWS service issue affects its resources?
+    options:
+      A: "The AWS Health Dashboard (account health events, also available in EventBridge)."
+      B: "The IAM policy simulator."
+      C: "AWS Trusted Advisor cost checks."
+      D: "AWS Config conformance packs."
+    answer: [A]
+    explanation: |
+      AWS Health shows service events and scheduled changes affecting your account and resources.
+      B, C and D answer other questions.
+    refs: [book/src/ch22-troubleshooting.md]

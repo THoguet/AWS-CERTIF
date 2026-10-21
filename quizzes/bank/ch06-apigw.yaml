@@ -11,15 +11,15 @@ questions:
     options:
       A: "Return {\"statusCode\": 200, \"headers\": {...}, \"body\": json.dumps({\"orders\": [...]})}."
       B: "Increase the API Gateway integration timeout."
-      C: "Enable API caching on the stage."
-      D: "Grant API Gateway permission to invoke the function."
+      C: "Grant API Gateway permission to invoke the function."
+      D: "Enable API caching on the stage."
     answer: [A]
     explanation: |
       Proxy integrations expect an object with statusCode, optional headers, and body as a STRING. Anything
       else is a malformed response, which gives 502.
       B: a timeout gives 504.
-      C is unrelated.
-      D: a permission problem gives 500, and the function was invoked anyway.
+      C: a permission problem gives 500, and the function was invoked anyway.
+      D is unrelated.
     refs: [book/src/ch06-api-gateway-appsync.md]
 
   - id: apigw-002
@@ -31,16 +31,16 @@ questions:
       Which design should the developer implement?
     options:
       A: "Accept the request, enqueue the job (SQS or Step Functions), return 202 with a job ID, and let the client poll a status endpoint or receive a notification."
-      B: "Increase the Lambda timeout to 15 minutes."
+      B: "Switch from a REST API to an HTTP API."
       C: "Enable API Gateway caching."
-      D: "Switch from a REST API to an HTTP API."
+      D: "Increase the Lambda timeout to 15 minutes."
     answer: [A]
     explanation: |
       The integration timeout (29 s by default for REST, 30 s for HTTP APIs) is hit, so long work must be made
       asynchronous.
-      B: the Lambda timeout does not change API Gateway's integration timeout.
+      B: HTTP APIs have a similar limit.
       C does not help first requests.
-      D: HTTP APIs have a similar limit.
+      D: the Lambda timeout does not change API Gateway's integration timeout.
     refs: [book/src/ch06-api-gateway-appsync.md]
 
   - id: apigw-003
@@ -51,18 +51,18 @@ questions:
       A REST API has dev and prod stages. The dev stage must invoke the Lambda alias "dev" and the prod stage
       the alias "prod", using a single API definition. Which steps are required? (Choose TWO.)
     options:
-      A: "Use ${stageVariables.lambdaAlias} in the Lambda integration URI and set lambdaAlias per stage."
-      B: "Add a resource-based permission on each alias allowing API Gateway to invoke it."
-      C: "Create a separate REST API per environment with a hard-coded alias."
-      D: "Point the integration to $LATEST and use environment variables."
-      E: "Configure a usage plan per stage."
-    answer: [A, B]
+      A: "Create a separate REST API per environment with a hard-coded alias."
+      B: "Configure a usage plan per stage."
+      C: "Add a resource-based permission on each alias allowing API Gateway to invoke it."
+      D: "Use ${stageVariables.lambdaAlias} in the Lambda integration URI and set lambdaAlias per stage."
+      E: "Point the integration to $LATEST and use environment variables."
+    answer: [C, D]
     explanation: |
       Stage variables make one integration resolve to different aliases per stage. API Gateway needs
       lambda:InvokeFunction on each alias (add-permission with a qualifier).
-      C works but duplicates the API.
-      D does not separate environments.
-      E is for throttling and quotas.
+      A works but duplicates the API.
+      B is for throttling and quotas.
+      E does not separate environments.
     refs: [book/src/ch06-api-gateway-appsync.md]
 
   - id: apigw-004
@@ -73,15 +73,15 @@ questions:
       A company sells access to its REST API in tiers: Basic (100 requests/day) and Premium (10,000
       requests/day, higher rate). Each customer must be metered separately. Which features should be used?
     options:
-      A: "Usage plans with throttling and quotas, and one API key per customer associated with the right plan."
+      A: "A WAF rate-based rule per customer."
       B: "Lambda reserved concurrency per customer."
-      C: "A WAF rate-based rule per customer."
+      C: "Usage plans with throttling and quotas, and one API key per customer associated with the right plan."
       D: "A separate stage per customer."
-    answer: [A]
+    answer: [C]
     explanation: |
       Usage plans define rate, burst and quota limits. API keys identify customers and attach them to a plan.
       Callers over the limit receive 429.
-      B, C and D do not meter per customer in a manageable way.
+      A, B and D do not meter per customer in a manageable way.
     refs: [book/src/ch06-api-gateway-appsync.md]
 
   - id: apigw-005
@@ -93,16 +93,16 @@ questions:
       product data changes rarely. The team wants to cut Lambda invocations and latency with the LEAST effort.
       What should they do?
     options:
-      A: "Enable API Gateway caching on the stage with an appropriate TTL, with the id path parameter as part of the cache key."
-      B: "Add an ElastiCache cluster in front of the Lambda function."
+      A: "Use provisioned concurrency."
+      B: "Enable API Gateway caching on the stage with an appropriate TTL, with the id path parameter as part of the cache key."
       C: "Increase the Lambda memory."
-      D: "Use provisioned concurrency."
-    answer: [A]
+      D: "Add an ElastiCache cluster in front of the Lambda function."
+    answer: [B]
     explanation: |
       Stage caching returns cached responses without calling the backend. The TTL defaults to 300 s, with a
       maximum of 3,600 s. The path parameter must be in the cache key so that each product is cached separately.
-      B requires code and infrastructure changes.
-      C and D do not reduce invocations.
+      A and C do not reduce invocations.
+      D requires code and infrastructure changes.
     refs: [book/src/ch06-api-gateway-appsync.md]
 
   - id: apigw-006
@@ -114,16 +114,16 @@ questions:
       "Cache-Control: max-age=0" on every request, which bypasses the cache and overloads the backend. How can
       they prevent this?
     options:
-      A: "Require authorization to invalidate cache entries, so that only principals with execute-api:InvalidateCache can bypass the cache."
-      B: "Disable caching for GET methods."
-      C: "Set the cache TTL to 0."
-      D: "Add a usage plan."
-    answer: [A]
+      A: "Set the cache TTL to 0."
+      B: "Add a usage plan."
+      C: "Disable caching for GET methods."
+      D: "Require authorization to invalidate cache entries, so that only principals with execute-api:InvalidateCache can bypass the cache."
+    answer: [D]
     explanation: |
       Requiring authorization for cache invalidation makes API Gateway ignore (or reject) the header from
       unauthorized clients.
-      B and C remove the cache.
-      D throttles but still bypasses the cache.
+      A and C remove the cache.
+      B throttles but still bypasses the cache.
     refs: [book/src/ch06-api-gateway-appsync.md]
 
   - id: apigw-007
@@ -134,17 +134,17 @@ questions:
       A POST /orders endpoint must reject requests whose JSON body is missing required fields, without
       invoking the backend Lambda function. What should the developer configure?
     options:
-      A: "A request validator on the method with a model (JSON Schema) for the request body."
+      A: "An integration response mapping template."
       B: "A Lambda authorizer that parses the body."
-      C: "A WAF rule inspecting the body."
-      D: "An integration response mapping template."
-    answer: [A]
+      C: "A request validator on the method with a model (JSON Schema) for the request body."
+      D: "A WAF rule inspecting the body."
+    answer: [C]
     explanation: |
       REST API request validation checks the body against a model, and required parameters and headers, then
       returns 400 before calling the integration.
+      A transforms responses.
       B: authorizers are for authentication and authorization.
-      C: WAF targets attacks, not schema validation.
-      D transforms responses.
+      D: WAF targets attacks, not schema validation.
     refs: [book/src/ch06-api-gateway-appsync.md]
 
   - id: apigw-008
@@ -155,16 +155,16 @@ questions:
       Users of a web app sign in with an Amazon Cognito user pool. The REST API must only accept requests with
       a valid token from that pool, with no custom code. What should the developer configure on the API?
     options:
-      A: "A Cognito user pool authorizer."
-      B: "IAM authorization with SigV4."
-      C: "API keys."
-      D: "A resource policy allowing the user pool ARN."
-    answer: [A]
+      A: "IAM authorization with SigV4."
+      B: "A resource policy allowing the user pool ARN."
+      C: "A Cognito user pool authorizer."
+      D: "API keys."
+    answer: [C]
     explanation: |
       The Cognito user pool authorizer validates the JWT (signature, expiry, audience/scopes) automatically.
-      B requires AWS credentials.
-      C: API keys are not authentication.
-      D: resource policies do not validate JWTs.
+      A requires AWS credentials.
+      B: resource policies do not validate JWTs.
+      D: API keys are not authentication.
     refs: [book/src/ch06-api-gateway-appsync.md, book/src/ch12-cognito.md]
 
   - id: apigw-009
@@ -176,15 +176,15 @@ questions:
       token must be validated by calling the identity system's API. Which authorization option fits?
     options:
       A: "A Lambda authorizer (TOKEN type) that validates the token and returns an IAM policy, with result caching enabled."
-      B: "A Cognito user pool authorizer."
-      C: "A JWT authorizer on an HTTP API."
-      D: "Mutual TLS."
+      B: "Mutual TLS."
+      C: "A Cognito user pool authorizer."
+      D: "A JWT authorizer on an HTTP API."
     answer: [A]
     explanation: |
       Lambda authorizers run custom validation logic. Caching the result per token reduces calls to the
       legacy system.
-      B and C only validate Cognito or OIDC JWTs.
-      D authenticates client certificates, not bearer tokens.
+      B authenticates client certificates, not bearer tokens.
+      C and D only validate Cognito or OIDC JWTs.
     refs: [book/src/ch06-api-gateway-appsync.md]
 
   - id: apigw-010
@@ -196,16 +196,16 @@ questions:
       is enabled with a 300-second TTL. Users can call GET /orders, but their next call to GET /profile within
       a few minutes returns 403. Why?
     options:
-      A: "The cached policy only allows the first method/resource, and API Gateway reuses it for the same token on other resources."
-      B: "The authorizer has a timeout of 3 seconds."
-      C: "GET /profile requires an API key."
-      D: "The Cognito token expired."
-    answer: [A]
+      A: "The Cognito token expired."
+      B: "GET /profile requires an API key."
+      C: "The cached policy only allows the first method/resource, and API Gateway reuses it for the same token on other resources."
+      D: "The authorizer has a timeout of 3 seconds."
+    answer: [C]
     explanation: |
       With caching, the policy returned for the first call applies to later calls with the same token. Return a
       policy covering every needed resource (e.g. arn:...:api/stage/*/*), or disable caching.
-      B would fail the first call too.
-      C and D do not match the pattern of the symptom.
+      A and B do not match the pattern of the symptom.
+      D would fail the first call too.
     refs: [book/src/ch06-api-gateway-appsync.md]
 
   - id: apigw-011
@@ -218,15 +218,15 @@ questions:
       should they choose?
     options:
       A: "An API Gateway HTTP API with a JWT authorizer."
-      B: "An API Gateway REST API with a Lambda authorizer."
+      B: "AWS AppSync."
       C: "An API Gateway WebSocket API."
-      D: "AWS AppSync."
+      D: "An API Gateway REST API with a Lambda authorizer."
     answer: [A]
     explanation: |
       HTTP APIs are cheaper and faster than REST APIs, and include a native JWT authorizer for OIDC/OAuth2.
-      B is more expensive and needs authorizer code.
+      B is for GraphQL.
       C is for persistent two-way connections.
-      D is for GraphQL.
+      D is more expensive and needs authorizer code.
     refs: [book/src/ch06-api-gateway-appsync.md]
 
   - id: apigw-012
@@ -238,16 +238,16 @@ questions:
       weeks. The response format is already agreed. How can the backend team unblock them quickly?
     options:
       A: "Create the resources and methods with mock integrations that return the agreed sample responses, and deploy them to a dev stage."
-      B: "Ask the front-end team to wait for the backend."
-      C: "Deploy an empty Lambda function returning 200 with no body."
-      D: "Share the production API key."
+      B: "Share the production API key."
+      C: "Ask the front-end team to wait for the backend."
+      D: "Deploy an empty Lambda function returning 200 with no body."
     answer: [A]
     explanation: |
       Mock integrations return static responses from API Gateway itself, with no backend needed, which is
       ideal for contract-first development and testing.
-      B blocks the team.
-      C does not follow the contract.
-      D is insecure and irrelevant.
+      B is insecure and irrelevant.
+      C blocks the team.
+      D does not follow the contract.
     refs: [book/src/ch06-api-gateway-appsync.md, book/src/ch19-testing.md]
 
   - id: apigw-013
@@ -278,16 +278,16 @@ questions:
       An internal REST API must only be reachable from applications inside the company's VPCs, never from the
       internet. Which configuration achieves this?
     options:
-      A: "A private REST API accessed through an interface VPC endpoint (execute-api), with a resource policy allowing only that endpoint."
-      B: "A regional API with an IAM authorizer."
-      C: "An edge-optimized API with WAF geo-blocking."
-      D: "A regional API with API keys."
-    answer: [A]
+      A: "An edge-optimized API with WAF geo-blocking."
+      B: "A regional API with API keys."
+      C: "A regional API with an IAM authorizer."
+      D: "A private REST API accessed through an interface VPC endpoint (execute-api), with a resource policy allowing only that endpoint."
+    answer: [D]
     explanation: |
       Private APIs are only reachable through interface VPC endpoints, and the resource policy restricts
       which endpoints and VPCs can call them.
-      B and D remain publicly reachable.
-      C blocks countries, not the internet.
+      A blocks countries, not the internet.
+      B and C remain publicly reachable.
     refs: [book/src/ch06-api-gateway-appsync.md]
 
   - id: apigw-015
@@ -298,17 +298,17 @@ questions:
       CloudWatch shows that an API's average Latency is 1,200 ms while IntegrationLatency is 150 ms. Where is
       most of the time spent?
     options:
-      A: "Inside API Gateway itself (e.g. a slow Lambda authorizer or mapping templates), not in the backend integration."
-      B: "In the backend Lambda function."
+      A: "In the backend Lambda function."
+      B: "In DNS resolution."
       C: "In the client's network connection."
-      D: "In DNS resolution."
-    answer: [A]
+      D: "Inside API Gateway itself (e.g. a slow Lambda authorizer or mapping templates), not in the backend integration."
+    answer: [D]
     explanation: |
       Latency is measured by API Gateway from request receipt to response, and IntegrationLatency covers only
       the backend call. The difference (~1,050 ms) is spent in API Gateway: authorizers (possibly with cold
       starts), validation, mapping.
-      B would show a high IntegrationLatency.
-      C and D are not included in these metrics.
+      A would show a high IntegrationLatency.
+      B and C are not included in these metrics.
     refs: [book/src/ch06-api-gateway-appsync.md, book/src/ch22-troubleshooting.md]
 
   - id: apigw-016
@@ -342,16 +342,16 @@ questions:
       missing?
     options:
       A: "The Lambda function must include the Access-Control-Allow-Origin header in its proxy responses."
-      B: "The API must be redeployed as an HTTP API."
-      C: "An API key must be required on the GET method."
-      D: "The S3 bucket CORS configuration must be updated."
+      B: "The S3 bucket CORS configuration must be updated."
+      C: "The API must be redeployed as an HTTP API."
+      D: "An API key must be required on the GET method."
     answer: [A]
     explanation: |
       With proxy integrations, API Gateway passes the Lambda response through unchanged, so the function must
       return the CORS headers. The console's Enable CORS only configures OPTIONS (and non-proxy responses).
-      B is unnecessary.
-      C is unrelated.
-      D: no S3 involved.
+      B: no S3 involved.
+      C is unnecessary.
+      D is unrelated.
     refs: [book/src/ch06-api-gateway-appsync.md]
 
   - id: apigw-018
@@ -362,15 +362,15 @@ questions:
       A developer changed the integration of a REST API method in the console, but clients calling the prod
       stage URL still get the old behavior. What did the developer forget?
     options:
-      A: "To deploy the API to the prod stage (create a new deployment)."
-      B: "To flush the CloudFront cache."
+      A: "To flush the CloudFront cache."
+      B: "To deploy the API to the prod stage (create a new deployment)."
       C: "To restart the Lambda function."
       D: "To enable detailed CloudWatch metrics."
-    answer: [A]
+    answer: [B]
     explanation: |
       REST API changes only become live when you create a deployment for a stage, because stages point to
       immutable deployment snapshots.
-      B: no CloudFront invalidation is needed for this.
+      A: no CloudFront invalidation is needed for this.
       C: Lambda has no restart.
       D is unrelated.
     refs: [book/src/ch06-api-gateway-appsync.md]

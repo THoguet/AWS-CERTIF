@@ -1,0 +1,324 @@
+chapter: ch17
+topic: cicd
+questions:
+  - id: cicd-001
+    domain: 2
+    task: "2.3"
+    difficulty: 2
+    question: |
+      A CodeBuild project needs a third-party API token, stored in Secrets Manager as prod/sonar with the JSON key
+      token, during its test phase. The token must never appear in the project configuration. What should the
+      developer do?
+    options:
+      A: "Map it in the buildspec under env.secrets-manager (SONAR_TOKEN: prod/sonar:token) and allow the CodeBuild service role to read the secret."
+      B: "Pass the token as a CodePipeline variable."
+      C: "Commit the token to the repository in a .env file."
+      D: "Add the token as a plaintext environment variable in the CodeBuild project."
+    answer: [A]
+    explanation: |
+      CodeBuild fetches secrets-manager and parameter-store values at build time into environment variables,
+      using the service role's permissions.
+      B exposes it in pipeline metadata.
+      C leaks it in source control.
+      D shows the token to anyone who can read the project.
+    refs: [book/src/ch17-cicd.md]
+
+  - id: cicd-002
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      A CodeBuild build that runs docker build fails with "Cannot connect to the Docker daemon at
+      unix:///var/run/docker.sock". What should be changed?
+    options:
+      A: "Enable privileged mode in the build project's environment."
+      B: "Give the CodeBuild service role ECR full access."
+      C: "Increase the build timeout."
+      D: "Move the docker commands to the post_build phase."
+    answer: [A]
+    explanation: |
+      Building Docker images in CodeBuild requires privileged mode, so that the build container can run the
+      Docker daemon.
+      B is needed to push images, not to reach the daemon.
+      C and D do not start the daemon.
+    refs: [book/src/ch17-cicd.md]
+
+  - id: cicd-003
+    domain: 3
+    task: "3.4"
+    difficulty: 2
+    question: |
+      Integration tests in CodeBuild must connect to an RDS database in private subnets that has no public
+      endpoint. What should be configured?
+    options:
+      A: "A larger compute type."
+      B: "A public IP address on the database."
+      C: "A VPC endpoint for CodeBuild."
+      D: "A VPC configuration on the CodeBuild project (VPC, private subnets, security group allowed by the database's security group)."
+    answer: [D]
+    explanation: |
+      CodeBuild can run builds inside a VPC to reach private resources. For internet access from private
+      subnets, the subnets need a NAT gateway.
+      A is unrelated.
+      B weakens security.
+      C lets resources in a VPC call the CodeBuild API, the opposite direction.
+    refs: [book/src/ch17-cicd.md]
+
+  - id: cicd-004
+    domain: 3
+    task: "3.4"
+    difficulty: 1
+    question: |
+      In which order does CodeBuild run the phases of a buildspec?
+    options:
+      A: "build, install, pre_build, post_build"
+      B: "pre_build, install, build, post_build"
+      C: "install, build, pre_build, post_build"
+      D: "install, pre_build, build, post_build"
+    answer: [D]
+    explanation: |
+      install sets up runtimes and tools, pre_build logs in and runs early checks, build compiles and packages,
+      and post_build pushes images or notifies. Artifacts and reports are collected afterwards.
+    refs: [book/src/ch17-cicd.md]
+
+  - id: cicd-005
+    domain: 3
+    task: "3.4"
+    difficulty: 2
+    question: |
+      A CodeDeploy in-place deployment to EC2 uses an AppSpec file with scripts for several hooks. In which order
+      do these hooks run?
+    options:
+      A: "BeforeInstall, AfterInstall, ApplicationStop, ApplicationStart, ValidateService"
+      B: "BeforeInstall, ApplicationStop, AfterInstall, ValidateService, ApplicationStart"
+      C: "ApplicationStart, BeforeInstall, AfterInstall, ApplicationStop, ValidateService"
+      D: "ApplicationStop, BeforeInstall, AfterInstall, ApplicationStart, ValidateService"
+    answer: [D]
+    explanation: |
+      The full in-place sequence is ApplicationStop, DownloadBundle, BeforeInstall, Install, AfterInstall,
+      ApplicationStart and ValidateService. DownloadBundle and Install are run by the agent itself (exercise
+      cicd_2).
+    refs: [book/src/ch17-cicd.md]
+
+  - id: cicd-006
+    domain: 4
+    task: "4.1"
+    difficulty: 3
+    question: |
+      After a release with a broken stop script, every new CodeDeploy deployment to an EC2 fleet fails during
+      ApplicationStop, even though the new revision contains a fixed script. Why, and what should be done?
+    options:
+      A: "The AppSpec version must be incremented."
+      B: "ApplicationStop runs the script of the previously deployed revision. Fix or remove that script on the instances, or deploy once with ignoreApplicationStopFailures."
+      C: "The CodeDeploy agent must be reinstalled from the new revision."
+      D: "ApplicationStop scripts are cached by CodeDeploy for 24 hours. Wait one day."
+    answer: [B]
+    explanation: |
+      The application is stopped before the new revision is installed, so the old (broken) script runs. Once
+      a deployment succeeds with the fixed script, later deployments use it.
+      A, C and D are false.
+    refs: [book/src/ch17-cicd.md, book/src/ch22-troubleshooting.md]
+
+  - id: cicd-007
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      A CodeDeploy deployment to newly launched EC2 instances fails, and the instances never report any lifecycle
+      event. The revision is stored in S3. What should the developer check FIRST?
+    options:
+      A: "That the AppSpec file uses version 0.0."
+      B: "That the instances have Elastic IP addresses."
+      C: "That the CodeDeploy agent is installed and running, and that the instance profile allows reading the revision from S3."
+      D: "That the deployment configuration is OneAtATime."
+    answer: [C]
+    explanation: |
+      EC2/on-premises deployments are carried out by the agent, which downloads the bundle with the instance
+      profile's credentials. Without the agent or that permission, nothing happens on the instance.
+      A is a requirement, but a wrong value would fail differently.
+      B and D are unrelated.
+    refs: [book/src/ch17-cicd.md]
+
+  - id: cicd-008
+    domain: 3
+    task: "3.4"
+    difficulty: 1
+    question: |
+      A pipeline deploys to staging automatically. A release manager must review the staging environment and
+      approve each release before it reaches production, and wants to be notified by email. What should be added?
+    options:
+      A: "Disable the transition to production and re-enable it after each review."
+      B: "A CodeBuild action that waits for 24 hours."
+      C: "A Lambda function that polls an email inbox."
+      D: "A manual approval action before the production stage, with an SNS topic for notifications."
+    answer: [D]
+    explanation: |
+      Manual approval actions pause the pipeline, can notify an SNS topic with a review URL, and record the
+      approver's comment. Approvers need codepipeline:PutApprovalResult, and pending approvals expire after
+      7 days.
+      A is a manual workaround with no audit trail.
+      B and C are custom workarounds.
+    refs: [book/src/ch17-cicd.md]
+
+  - id: cicd-009
+    domain: 3
+    task: "3.4"
+    difficulty: 3
+    question: |
+      A pipeline in a tools account must deploy a CloudFormation stack into a production account. Which elements
+      are required? (Choose TWO.)
+    options:
+      A: "A customer managed KMS key for the artifact bucket, with a key policy that lets the production account use it."
+      B: "A VPC peering connection between the accounts."
+      C: "A copy of the pipeline in the production account."
+      D: "A role in the production account that trusts the tools account and that the pipeline action assumes."
+      E: "The default AWS managed key aws/s3 for the artifact bucket."
+    answer: [A, D]
+    explanation: |
+      The target account must decrypt the artifacts, which the AWS managed key does not allow, and the pipeline
+      needs a cross-account role to act there. The artifact bucket policy must also grant access.
+      B and C are unnecessary.
+      E cannot be shared across accounts.
+    refs: [book/src/ch17-cicd.md]
+
+  - id: cicd-010
+    domain: 3
+    task: "3.4"
+    difficulty: 1
+    question: |
+      In a CodePipeline test stage, a unit test action and a security scan action must run at the same time, and an
+      integration test action must run only after both succeed. How should the actions be configured?
+    options:
+      A: "Put each action in its own pipeline."
+      B: "Give all three actions runOrder 1."
+      C: "Give the unit test and security scan actions runOrder 1, and the integration test action runOrder 2."
+      D: "Give the actions runOrder 1, 2 and 3."
+    answer: [C]
+    explanation: |
+      Actions in the same stage with the same runOrder run in parallel, and a higher runOrder waits for the
+      previous ones (exercise cicd_4).
+      A loses the coordination.
+      B runs the integration tests too early.
+      D runs everything sequentially.
+    refs: [book/src/ch17-cicd.md]
+
+  - id: cicd-011
+    domain: 4
+    task: "4.2"
+    difficulty: 2
+    question: |
+      The team wants a chat or email notification whenever any stage of a production pipeline fails. Which solution
+      requires the LEAST effort?
+    options:
+      A: "A CloudWatch Logs metric filter on the pipeline's logs."
+      B: "A manual approval action at the end of the pipeline."
+      C: "An EventBridge rule (or notification rule) matching pipeline execution state FAILED, targeting an SNS topic."
+      D: "A Lambda function that calls GetPipelineState every minute."
+    answer: [C]
+    explanation: |
+      CodePipeline emits pipeline, stage and action state change events to EventBridge, which can route them to
+      SNS or chat applications.
+      A: pipeline state changes are emitted as events, not log lines, so a metric filter is the wrong tool.
+      B does not notify about failures.
+      D is polling.
+    refs: [book/src/ch17-cicd.md]
+
+  - id: cicd-012
+    domain: 3
+    task: "3.1"
+    difficulty: 2
+    question: |
+      Several teams publish internal Python libraries that must stay private, and builds should keep working even
+      when the public PyPI registry has an outage. Which service fits?
+    options:
+      A: "AWS CodeArtifact, with a repository that has an upstream external connection to PyPI."
+      B: "A public S3 bucket used as a package index."
+      C: "Amazon ECR."
+      D: "CodeCommit repositories with the wheel files committed."
+    answer: [A]
+    explanation: |
+      CodeArtifact hosts private packages and proxies and caches public ones, so cached dependencies stay
+      available. Builds authenticate with aws codeartifact login.
+      B exposes the libraries.
+      C stores container images (and OCI artifacts), not PyPI packages.
+      D is not a package index.
+    refs: [book/src/ch17-cicd.md]
+
+  - id: cicd-013
+    domain: 2
+    task: "2.1"
+    difficulty: 3
+    question: |
+      Developers must be able to push feature branches to a CodeCommit repository, but only the release team may
+      push or merge to main. How can this be enforced?
+    options:
+      A: "A CodeCommit trigger that reverts pushes to main."
+      B: "A Git hook in each developer's local clone."
+      C: "An IAM policy for developers that denies codecommit:GitPush and merge actions when codecommit:References equals refs/heads/main."
+      D: "Separate repositories for each developer."
+    answer: [C]
+    explanation: |
+      CodeCommit access is controlled by IAM, and the codecommit:References condition key restricts actions per
+      branch. Approval rule templates can also require reviews on pull requests.
+      A reacts after the fact.
+      B can be bypassed.
+      D does not solve the problem.
+    refs: [book/src/ch17-cicd.md]
+
+  - id: cicd-014
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      A CodeDeploy in-place deployment fails with an error saying that a file already exists at the destination
+      location. The files were installed manually before CodeDeploy was adopted. What is the cleanest fix?
+    options:
+      A: "Add a ValidateService hook."
+      B: "Terminate the instances."
+      C: "Set the file-exists behavior of the deployment to OVERWRITE (or RETAIN) for this deployment."
+      D: "Change the deployment configuration to AllAtOnce."
+    answer: [C]
+    explanation: |
+      By default CodeDeploy refuses to overwrite files it did not install (DISALLOW). The file-exists behavior
+      can be set to OVERWRITE or RETAIN.
+      A and D do not change how existing files are handled.
+      B is drastic.
+    refs: [book/src/ch17-cicd.md]
+
+  - id: cicd-015
+    domain: 3
+    task: "3.4"
+    difficulty: 2
+    question: |
+      An ECS service deployed with CodeDeploy blue/green must run automated tests against the new task set through
+      the load balancer before any production traffic reaches it. Which hook is designed for this?
+    options:
+      A: "DownloadBundle"
+      B: "BeforeBlockTraffic"
+      C: "ApplicationStop"
+      D: "AfterAllowTestTraffic, invoked when the test listener routes to the replacement task set."
+    answer: [D]
+    explanation: |
+      ECS blue/green deployments route a test listener to the green task set first. Hook functions on
+      AfterAllowTestTraffic can validate it before production traffic shifts.
+      A, B and C are EC2/on-premises hooks, and DownloadBundle is reserved for the agent.
+    refs: [book/src/ch17-cicd.md]
+
+  - id: cicd-016
+    domain: 3
+    task: "3.4"
+    difficulty: 2
+    question: |
+      A team builds its application separately for each environment, and bugs sometimes appear in production that
+      were not present in staging. Which practice addresses this?
+    options:
+      A: "Build production artifacts on developers' laptops."
+      B: "Use a larger build instance for production builds."
+      C: "Skip tests in staging to release faster."
+      D: "Build once and promote the same artifact (zip, image digest or packaged template) through every environment, changing only configuration."
+    answer: [D]
+    explanation: |
+      Rebuilding per environment can produce different artifacts (dependency versions, build flags). Promoting
+      one tested artifact ensures production runs exactly what was tested.
+      A, B and C make the problem worse or do not address it.
+    refs: [book/src/ch17-cicd.md]

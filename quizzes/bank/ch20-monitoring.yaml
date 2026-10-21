@@ -1,0 +1,308 @@
+chapter: ch20
+topic: monitoring
+questions:
+  - id: monitoring-001
+    domain: 4
+    task: "4.2"
+    difficulty: 2
+    question: |
+      A Lambda function handles 3,000 requests per second and must publish a latency metric per customer tier.
+      Calling PutMetricData from the handler adds latency and sometimes gets throttled. Which approach fits BEST?
+    options:
+      A: "Enable detailed monitoring on the function."
+      B: "Call PutMetricData in a background thread for each request."
+      C: "Write the metrics to a DynamoDB table and aggregate them hourly."
+      D: "Write log lines in CloudWatch Embedded Metric Format (EMF), so that CloudWatch extracts the metrics asynchronously from the logs."
+    answer: [D]
+    explanation: |
+      EMF metrics are extracted from logs the function already writes, with no API call in the request path.
+      The log line keeps its context for Logs Insights queries (exercise cw_2).
+      A does not exist for Lambda and would not create custom metrics.
+      B still makes one API call per request.
+      C requires custom aggregation.
+    refs: [book/src/ch20-monitoring-logging.md]
+
+  - id: monitoring-002
+    domain: 4
+    task: "4.2"
+    difficulty: 1
+    question: |
+      An operations team wants to alarm when memory utilization of EC2 instances exceeds 85%, but finds no memory
+      metric in the AWS/EC2 namespace. What should they do?
+    options:
+      A: "Install and configure the CloudWatch agent on the instances to publish memory metrics."
+      B: "Enable detailed monitoring."
+      C: "Enable CloudTrail data events."
+      D: "Use the CPUUtilization metric instead."
+    answer: [A]
+    explanation: |
+      The hypervisor cannot see inside the operating system, so memory, disk space and process metrics require
+      the CloudWatch agent.
+      B only increases the frequency of the default metrics to 1 minute.
+      C records API calls.
+      D measures something else.
+    refs: [book/src/ch20-monitoring-logging.md]
+
+  - id: monitoring-003
+    domain: 4
+    task: "4.2"
+    difficulty: 2
+    question: |
+      A trading application publishes a custom metric and needs an alarm that can react within 10 to 30 seconds of a
+      problem. How should the metric be published?
+    options:
+      A: "As a high-resolution metric (StorageResolution=1), with an alarm period of 10 or 30 seconds."
+      B: "As a standard-resolution metric with a 1-minute period."
+      C: "With EC2 detailed monitoring enabled."
+      D: "With a metric filter on a log group."
+    answer: [A]
+    explanation: |
+      High-resolution custom metrics keep 1-second data points, and alarms on them can use 10-second or 30-second
+      periods.
+      B evaluates at most every minute.
+      C applies to EC2 default metrics only, at 1-minute granularity.
+      D produces standard-resolution metrics.
+    refs: [book/src/ch20-monitoring-logging.md]
+
+  - id: monitoring-004
+    domain: 4
+    task: "4.2"
+    difficulty: 2
+    question: |
+      An alarm on a function's Errors metric pages the on-call engineer whenever a single isolated error occurs.
+      The team wants to be paged only for sustained problems. What should be changed?
+    options:
+      A: "Change the statistic to Minimum."
+      B: "Configure M out of N evaluation, for example DatapointsToAlarm 3 out of EvaluationPeriods 5, or alarm on an error rate with metric math."
+      C: "Delete the alarm and check the dashboard daily."
+      D: "Set TreatMissingData to breaching."
+    answer: [B]
+    explanation: |
+      M out of N requires several breaching periods, which filters isolated blips. An error rate
+      (Errors / Invocations) is more meaningful than a raw count, and composite alarms can combine signals.
+      A hides errors.
+      C misses incidents.
+      D creates more alarms when there is no data.
+    refs: [book/src/ch20-monitoring-logging.md]
+
+  - id: monitoring-005
+    domain: 4
+    task: "4.2"
+    difficulty: 2
+    question: |
+      An alarm on the Errors metric of a rarely used function often shows INSUFFICIENT_DATA at night, when the
+      function is not invoked. No data means no errors. How should the alarm treat missing data?
+    options:
+      A: "TreatMissingData: missing"
+      B: "TreatMissingData: breaching"
+      C: "TreatMissingData: notBreaching"
+      D: "Increase the alarm period to 1 day."
+    answer: [C]
+    explanation: |
+      notBreaching treats missing data points as good, which matches "no invocations means no errors".
+      A is the default behavior seen here.
+      B would trigger the alarm at night.
+      D delays detection.
+    refs: [book/src/ch20-monitoring-logging.md]
+
+  - id: monitoring-006
+    domain: 4
+    task: "4.2"
+    difficulty: 2
+    question: |
+      A developer creates a metric filter for "PaymentDeclined" on a log group that already contains thousands of
+      such events from the past week. The new metric shows no data for last week. Why?
+    options:
+      A: "Metric filters only apply to log events ingested after the filter is created."
+      B: "The metric needs 24 hours to backfill."
+      C: "Metric filters only work on JSON logs."
+      D: "Metric filters require a subscription filter."
+    answer: [A]
+    explanation: |
+      Metric filters are not retroactive. To analyze past events, run a Logs Insights query (exercise cw_4).
+      B and D are false.
+      C: they support plain text, space-delimited and JSON patterns.
+    refs: [book/src/ch20-monitoring-logging.md]
+
+  - id: monitoring-007
+    domain: 4
+    task: "4.3"
+    difficulty: 1
+    question: |
+      A company's CloudWatch Logs bill keeps growing although traffic is stable. The log groups were created
+      automatically by Lambda functions years ago. What is the MOST likely cause and fix?
+    options:
+      A: "Log streams are billed per stream. Reduce the number of functions."
+      B: "Log groups never expire by default. Set a retention period on each log group (and export what must be kept to S3)."
+      C: "Lambda writes each log line twice. Disable logging."
+      D: "Logs are replicated to every Region. Disable replication."
+    answer: [B]
+    explanation: |
+      Without a retention setting, stored log data accumulates forever. Retention can be set from 1 day to
+      10 years, and the Infrequent Access log class lowers costs further.
+      A, C and D are false.
+    refs: [book/src/ch20-monitoring-logging.md]
+
+  - id: monitoring-008
+    domain: 4
+    task: "4.2"
+    difficulty: 2
+    question: |
+      A security team needs every log event containing "AccessDenied" from an application's log group to be
+      processed by a Lambda function within seconds. What should be configured?
+    options:
+      A: "A CloudWatch dashboard."
+      B: "A metric filter and an alarm."
+      C: "A subscription filter on the log group with a filter pattern and the Lambda function as the destination."
+      D: "A CreateExportTask to S3 every minute."
+    answer: [C]
+    explanation: |
+      Subscription filters stream matching log events in near real time to Lambda, Kinesis Data Streams,
+      Firehose or OpenSearch.
+      A only displays data.
+      B counts events but does not deliver their content.
+      D: export tasks are batch jobs, not real time.
+    refs: [book/src/ch20-monitoring-logging.md]
+
+  - id: monitoring-009
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      Which CloudWatch Logs Insights query returns the 10 slowest invocations of a Lambda function from its log
+      group?
+    options:
+      A: "fields @message | sort @timestamp desc | limit 10"
+      B: "filter @message like /ERROR/ | stats count(*) by bin(5m)"
+      C: "stats avg(@duration) by @logStream | limit 10"
+      D: "filter @type = \"REPORT\" | fields @requestId, @duration | sort @duration desc | limit 10"
+    answer: [D]
+    explanation: |
+      Lambda's REPORT lines contain @duration, @billedDuration, @maxMemoryUsed and @initDuration fields.
+      A returns the 10 most recent log events.
+      B counts errors over time.
+      C averages durations per log stream.
+    refs: [book/src/ch20-monitoring-logging.md]
+
+  - id: monitoring-010
+    domain: 2
+    task: "2.1"
+    difficulty: 1
+    question: |
+      A production DynamoDB table was deleted yesterday. How can the team find out who deleted it and from which
+      IP address?
+    options:
+      A: "Read the DynamoDB Streams records."
+      B: "Check the X-Ray service map."
+      C: "Look up the DeleteTable event in CloudTrail event history."
+      D: "Query the table's CloudWatch metrics."
+    answer: [C]
+    explanation: |
+      CloudTrail records management API calls with the identity, time, source IP and parameters. Event history
+      keeps 90 days of management events for free.
+      A contains item changes, and the stream is gone with the table.
+      B shows request traces.
+      D shows usage, not identities.
+    refs: [book/src/ch20-monitoring-logging.md]
+
+  - id: monitoring-011
+    domain: 2
+    task: "2.1"
+    difficulty: 2
+    question: |
+      An auditor requires a record of every GetObject call on a bucket containing contracts, including the identity
+      of each caller. The account has a trail with default settings. What must be enabled?
+    options:
+      A: "CloudTrail data events for that bucket (S3 object-level operations) on the trail."
+      B: "S3 Versioning."
+      C: "CloudWatch detailed monitoring on the bucket."
+      D: "Nothing, because management events include GetObject."
+    answer: [A]
+    explanation: |
+      Object-level operations are data events, which are not logged by default and cost extra. S3 server access
+      logs are a cheaper, best-effort alternative.
+      B and C do not record callers.
+      D: GetObject is not a management event.
+    refs: [book/src/ch20-monitoring-logging.md]
+
+  - id: monitoring-012
+    domain: 4
+    task: "4.2"
+    difficulty: 2
+    question: |
+      A team wants to be warned before an application reaches its account quota for concurrent Lambda executions.
+      Which solution fits BEST?
+    options:
+      A: "An AWS Budgets alert."
+      B: "CloudTrail Insights."
+      C: "A CloudWatch alarm on the Lambda concurrency metric or the Service Quotas usage metric, with a threshold at a percentage of the quota."
+      D: "A weekly manual review of the Service Quotas console."
+    answer: [C]
+    explanation: |
+      Service Quotas publishes usage metrics (AWS/Usage) for many quotas, and alarms can compare usage with the
+      quota. Lambda also publishes ConcurrentExecutions.
+      A watches costs, not quotas.
+      B detects unusual API call rates.
+      D is manual and slow.
+    refs: [book/src/ch20-monitoring-logging.md]
+
+  - id: monitoring-013
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      The average latency of an API is 120 ms, yet many users complain about slow responses. Which statistic should
+      the team monitor to understand their experience?
+    options:
+      A: "The Average of the latency metric over 1 day."
+      B: "The SampleCount of the latency metric."
+      C: "The Minimum of the latency metric."
+      D: "A high percentile such as p99 (or p95) of the latency metric."
+    answer: [D]
+    explanation: |
+      Averages hide tail latency. p99 shows the latency that the slowest 1% of requests exceed.
+      A smooths the problem even more.
+      B counts data points.
+      C shows the best case.
+    refs: [book/src/ch20-monitoring-logging.md]
+
+  - id: monitoring-014
+    domain: 4
+    task: "4.2"
+    difficulty: 2
+    question: |
+      A request flows through API Gateway, three Lambda functions and an SQS queue. Engineers struggle to find all
+      the log lines of one failing request across the services. Which logging practice helps MOST?
+    options:
+      A: "Logging everything at DEBUG level in production."
+      B: "Printing plain-text messages with timestamps."
+      C: "Structured JSON logs that include a correlation ID generated at the entry point and propagated in headers and message attributes."
+      D: "Writing all services' logs to a single log stream."
+    answer: [C]
+    explanation: |
+      A propagated correlation ID, logged as a JSON field, lets a single Logs Insights query across log groups
+      return the whole transaction. X-Ray trace IDs serve the same purpose (exercise cw_5).
+      A adds noise and cost.
+      B is hard to query.
+      D is not possible across services and does not help.
+    refs: [book/src/ch20-monitoring-logging.md]
+
+  - id: monitoring-015
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      A DynamoDB table is being throttled although overall consumption is far below the provisioned capacity. The
+      team suspects a few hot partition keys. Which CloudWatch feature identifies the most accessed keys?
+    options:
+      A: "CloudWatch Synthetics."
+      B: "A CloudWatch dashboard of ConsumedReadCapacityUnits."
+      C: "CloudWatch Contributor Insights for DynamoDB."
+      D: "CloudTrail management events."
+    answer: [C]
+    explanation: |
+      Contributor Insights shows the top-N contributors, such as the most accessed and most throttled keys.
+      A tests endpoints.
+      B shows totals, not keys.
+      D does not record item-level operations.
+    refs: [book/src/ch20-monitoring-logging.md, book/src/ch07-dynamodb.md]

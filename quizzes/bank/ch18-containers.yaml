@@ -1,0 +1,271 @@
+chapter: ch18
+topic: containers
+questions:
+  - id: containers-001
+    domain: 3
+    task: "3.4"
+    difficulty: 2
+    question: |
+      A production Elastic Beanstalk environment must never run old and new versions on the same instances
+      during a deployment, and a failed deployment must be rolled back as quickly as possible. Which deployment
+      policy should be used?
+    options:
+      A: "Rolling with additional batch"
+      B: "All at once"
+      C: "Immutable"
+      D: "Rolling"
+    answer: [C]
+    explanation: |
+      Immutable deployments launch new instances in a temporary Auto Scaling group. Rolling back means
+      terminating them, and existing instances are never modified.
+      A and D update existing instances in batches, so a rollback means redeploying.
+      B causes downtime.
+    refs: [book/src/ch18-beanstalk-containers.md]
+
+  - id: containers-002
+    domain: 3
+    task: "3.4"
+    difficulty: 2
+    question: |
+      A Beanstalk web application must stay available at full capacity during deployments, while keeping the
+      extra cost as low as possible. Which deployment policy fits BEST?
+    options:
+      A: "Rolling with additional batch"
+      B: "Immutable"
+      C: "All at once"
+      D: "Rolling"
+    answer: [A]
+    explanation: |
+      Rolling with additional batch launches one extra batch first, so capacity never drops, and only that
+      batch costs extra.
+      B doubles capacity during the deployment, which costs more.
+      C causes downtime.
+      D reduces capacity while a batch is out of service.
+    refs: [book/src/ch18-beanstalk-containers.md]
+
+  - id: containers-003
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      An ECS task on Fargate fails to start with "ResourceInitializationError: unable to pull secrets or registry
+      auth". The task definition injects a Secrets Manager secret and uses an image from a private ECR repository.
+      Which role needs more permissions?
+    options:
+      A: "The IAM role of the developer who registered the task definition."
+      B: "The ECS service-linked role."
+      C: "The task role."
+      D: "The task execution role."
+    answer: [D]
+    explanation: |
+      The task execution role is used by ECS and Fargate to pull images, write awslogs logs and fetch secrets
+      before the containers start.
+      A is not used at runtime.
+      B manages networking and load balancer resources.
+      C is used by the application code once it runs.
+    refs: [book/src/ch18-beanstalk-containers.md]
+
+  - id: containers-004
+    domain: 2
+    task: "2.1"
+    difficulty: 2
+    question: |
+      A containerized application on ECS receives AccessDeniedException when it calls dynamodb:PutItem. Its image
+      pulls and logs work fine. What should the developer change?
+    options:
+      A: "Attach the permission to the EC2 instance profile of a Fargate task."
+      B: "Store access keys in the container's environment variables."
+      C: "Add the DynamoDB permission to the role set as taskRoleArn in the task definition."
+      D: "Add the DynamoDB permission to the task execution role."
+    answer: [C]
+    explanation: |
+      The task role provides credentials to the application through the container credentials endpoint.
+      A: Fargate tasks have no instance profile you manage.
+      B uses long-term credentials.
+      D is for the agent (pulling images, logs, secrets), not for the application's calls.
+    refs: [book/src/ch18-beanstalk-containers.md]
+
+  - id: containers-005
+    domain: 3
+    task: "3.1"
+    difficulty: 2
+    question: |
+      A Beanstalk web application takes several minutes to generate PDF reports, which slows down user requests.
+      What is the recommended Beanstalk design?
+    options:
+      A: "A worker environment: the web tier sends jobs to an SQS queue, and the worker tier's sqsd daemon POSTs each message to the application."
+      B: "Increase the web tier's instance size."
+      C: "Use the All at once deployment policy."
+      D: "Generate the reports in a background thread of the web server."
+    answer: [A]
+    explanation: |
+      Worker environments process long-running or periodic tasks (cron.yaml) from an SQS queue, decoupled from
+      the web tier. A 200 response deletes the message, and errors make it retry.
+      B and D do not decouple the work and lose jobs when instances are replaced.
+      C is unrelated.
+    refs: [book/src/ch18-beanstalk-containers.md]
+
+  - id: containers-006
+    domain: 3
+    task: "3.1"
+    difficulty: 1
+    question: |
+      A developer wants Beanstalk to set environment properties and install an OS package on every instance,
+      with the configuration versioned in the application's source code. Where should it go?
+    options:
+      A: "In a Dockerfile, for every platform."
+      B: "In a .config file in the .ebextensions folder at the root of the source bundle."
+      C: "In the instance user data, edited in the EC2 console."
+      D: "In a file named beanstalk.yaml anywhere in the bundle."
+    answer: [B]
+    explanation: |
+      .ebextensions/*.config files (YAML or JSON) define option_settings, packages, files, commands and extra
+      resources (exercise beanstalk_1). Platform hooks in .platform/ are another option on Amazon Linux 2023
+      platforms.
+      A only applies to Docker platforms.
+      C is overwritten by Beanstalk.
+      D is not recognized.
+    refs: [book/src/ch18-beanstalk-containers.md]
+
+  - id: containers-007
+    domain: 3
+    task: "3.4"
+    difficulty: 2
+    question: |
+      A team wants to deploy a new version of a Beanstalk application to a separate environment, test it, and
+      switch all users to it at once, keeping the old environment for a quick rollback. What should they do?
+    options:
+      A: "Use the Rolling deployment policy."
+      B: "Delete the old environment and create a new one with the same name."
+      C: "Use the All at once policy with a smaller batch size."
+      D: "Clone the environment, deploy the new version to the clone, then use Swap Environment URLs."
+    answer: [D]
+    explanation: |
+      Blue/green with Beanstalk swaps the CNAMEs of two environments. Rolling back means swapping again (DNS
+      caching can delay the switch for some clients).
+      A and C deploy in place.
+      B causes downtime and loses the rollback target.
+    refs: [book/src/ch18-beanstalk-containers.md]
+
+  - id: containers-008
+    domain: 3
+    task: "3.1"
+    difficulty: 2
+    question: |
+      A production Beanstalk environment was created with an RDS database inside it. The team plans to use
+      blue/green deployments, and is worried about the data. What should the developer do?
+    options:
+      A: "Store the data on the instances' EBS volumes instead."
+      B: "Use the Immutable policy, which also replaces the database safely."
+      C: "Create the RDS instance outside the environment (decoupled) and pass its endpoint and credentials through environment properties or Secrets Manager."
+      D: "Keep the database in the environment and take manual snapshots before each swap."
+    answer: [C]
+    explanation: |
+      A database created inside an environment is tied to its lifecycle and is deleted with it, and a cloned
+      environment would get a different database. Decoupling it lets several environments share it.
+      A loses data when instances are replaced.
+      B does not change the database.
+      D is risky and manual.
+    refs: [book/src/ch18-beanstalk-containers.md]
+
+  - id: containers-009
+    domain: 3
+    task: "3.1"
+    difficulty: 2
+    question: |
+      A team deploys images by tag (orders:1.4.2). After an incident, they discover that someone pushed a
+      different image with an existing tag. How can they prevent this in Amazon ECR?
+    options:
+      A: "Enable tag immutability on the repository (and deploy by image digest where possible)."
+      B: "Enable image scanning on push."
+      C: "Add a lifecycle policy that keeps only the last 10 images."
+      D: "Enable cross-Region replication."
+    answer: [A]
+    explanation: |
+      With tag immutability, pushing an image with an existing tag fails. A digest (sha256:...) always
+      identifies exactly one image.
+      B finds vulnerabilities.
+      C cleans up old images.
+      D copies images to other Regions.
+    refs: [book/src/ch18-beanstalk-containers.md]
+
+  - id: containers-010
+    domain: 3
+    task: "3.1"
+    difficulty: 2
+    question: |
+      Registering a Fargate task definition with cpu "256" and memory "4096" fails. What is the problem?
+    options:
+      A: "Fargate tasks cannot use more than 2 GB of memory."
+      B: "The networkMode must be bridge."
+      C: "Fargate only supports specific CPU and memory combinations, and 0.25 vCPU allows 0.5 to 2 GB."
+      D: "The memory value must be given in GB."
+    answer: [C]
+    explanation: |
+      Each Fargate CPU value supports a range of memory values (for example 0.5 vCPU with 1 to 4 GB, and 1 vCPU
+      with 2 to 8 GB). Fargate also requires awsvpc networking (exercise ecs_1).
+      A is false.
+      B: Fargate requires awsvpc.
+      D: memory is given in MiB.
+    refs: [book/src/ch18-beanstalk-containers.md]
+
+  - id: containers-011
+    domain: 4
+    task: "4.3"
+    difficulty: 2
+    question: |
+      A company runs batch containers on an ECS cluster backed by EC2 instances and wants to use as few instances as
+      possible to reduce cost. Which task placement strategy should be used?
+    options:
+      A: "random."
+      B: "spread across Availability Zones."
+      C: "binpack on memory (or CPU)."
+      D: "A distinctInstance placement constraint."
+    answer: [C]
+    explanation: |
+      binpack places tasks on the instances with the least remaining capacity, so fewer instances are needed.
+      A ignores capacity.
+      B maximizes availability, not density.
+      D forces one task per instance, the opposite of the goal.
+    refs: [book/src/ch18-beanstalk-containers.md]
+
+  - id: containers-012
+    domain: 3
+    task: "3.1"
+    difficulty: 1
+    question: |
+      A startup wants to deploy a containerized web API from a container image, with automatic HTTPS, load
+      balancing and scaling, and no clusters, task definitions or load balancers to configure. Which service is
+      the simplest choice?
+    options:
+      A: "Amazon EKS"
+      B: "AWS Batch"
+      C: "AWS App Runner"
+      D: "Amazon ECS on EC2"
+    answer: [C]
+    explanation: |
+      App Runner builds and runs web applications from source or images, and manages TLS, load balancing and
+      scaling.
+      A and D require more configuration (clusters, nodes or tasks, load balancers).
+      B runs batch jobs, not web services.
+    refs: [book/src/ch18-beanstalk-containers.md]
+
+  - id: containers-013
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      A Secrets Manager secret injected into an ECS service's containers was rotated an hour ago, but the running
+      containers still use the old password. Why?
+    options:
+      A: "ECS caches secrets for 24 hours."
+      B: "Rotation does not work with ECS."
+      C: "Secrets in the task definition are injected only when a container starts, so the tasks must be restarted (for example by forcing a new deployment)."
+      D: "The task role lacks permission to read the new version."
+    answer: [C]
+    explanation: |
+      ECS resolves secrets once, when it starts the container. To pick up a rotated value, restart the tasks,
+      or have the application read the secret at runtime with caching.
+      A and B are false.
+      D: secrets are injected with the task execution role, and the old value proves that access works.
+    refs: [book/src/ch18-beanstalk-containers.md, book/src/ch14-secrets-config.md]

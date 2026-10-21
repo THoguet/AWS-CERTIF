@@ -1,0 +1,273 @@
+chapter: ch16
+topic: sam
+questions:
+  - id: sam-001
+    domain: 3
+    task: "3.4"
+    difficulty: 2
+    question: |
+      A SAM application must shift 10% of traffic to each new Lambda version, wait 10 minutes, and then shift the
+      rest. If the function's error alarm fires during the deployment, traffic must return to the previous
+      version automatically. Which configuration achieves this with the LEAST effort?
+    options:
+      A: "Two API Gateway stages with a stage variable."
+      B: "A weighted alias updated by a scheduled Lambda function."
+      C: "DeploymentPreference with Type AllAtOnce and a PostTraffic hook."
+      D: "AutoPublishAlias: live and DeploymentPreference with Type Canary10Percent10Minutes and the alarm in Alarms."
+    answer: [D]
+    explanation: |
+      SAM publishes a version for each code change, moves the alias with CodeDeploy using the canary schedule,
+      and rolls back when an alarm fires.
+      A does not shift traffic gradually.
+      B is custom code for a built-in feature.
+      C switches all traffic at once, and the hook runs after the shift.
+    refs: [book/src/ch16-sam-serverless-deploy.md]
+
+  - id: sam-002
+    domain: 3
+    task: "3.2"
+    difficulty: 1
+    question: |
+      A developer wants to run a Lambda function on a laptop with a sample S3 event, and then test the function's
+      REST API locally before deploying. Which SAM CLI commands should be used?
+    options:
+      A: "sam package and sam publish."
+      B: "sam sync --watch."
+      C: "sam deploy --guided followed by sam logs."
+      D: "sam local generate-event s3 put, sam local invoke with the event, and sam local start-api."
+    answer: [D]
+    explanation: |
+      sam local runs functions in Docker containers that emulate Lambda, and start-api serves the API on
+      localhost:3000. generate-event creates realistic test events.
+      A prepares and shares artifacts.
+      B and C deploy to AWS.
+    refs: [book/src/ch16-sam-serverless-deploy.md, book/src/ch19-testing.md]
+
+  - id: sam-003
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      A Python function depends on a library with compiled C extensions. It works on the developer's Mac, but on
+      Lambda it fails with "invalid ELF header". How should the package be built?
+    options:
+      A: "Build it in a Lambda-compatible Amazon Linux environment for the function's architecture, for example with sam build --use-container."
+      B: "Zip the developer's site-packages folder and upload it again."
+      C: "Switch the function to the arm64 architecture."
+      D: "Increase the function's memory."
+    answer: [A]
+    explanation: |
+      Native dependencies must be compiled for Amazon Linux and the right CPU architecture. Building inside a
+      Lambda-like container produces compatible binaries (a container image is another option).
+      B reuploads the macOS binaries.
+      C changes the architecture without rebuilding the binaries for it.
+      D is unrelated.
+    refs: [book/src/ch16-sam-serverless-deploy.md]
+
+  - id: sam-004
+    domain: 2
+    task: "2.1"
+    difficulty: 2
+    question: |
+      In a SAM template, a function must send messages to a queue and read objects from a bucket. The team wants to
+      declare these relationships and let SAM generate least-privilege IAM permissions, instead of writing
+      policies. Which resource type should they use?
+    options:
+      A: "AWS::Serverless::LayerVersion"
+      B: "AWS::Serverless::Connector, with the function as Source and the queue or bucket as Destination."
+      C: "AWS::Serverless::Application"
+      D: "AWS::IAM::ManagedPolicy with Action \"*\""
+    answer: [B]
+    explanation: |
+      Connectors describe how resources interact (Read, Write), and SAM generates the scoped permissions.
+      Policy templates such as SQSSendMessagePolicy are the other low-effort option.
+      A packages shared code.
+      C deploys a nested application.
+      D grants far too much.
+    refs: [book/src/ch16-sam-serverless-deploy.md]
+
+  - id: sam-005
+    domain: 3
+    task: "3.2"
+    difficulty: 2
+    question: |
+      A developer iterating on a function in a personal development stack wants code changes deployed to AWS within
+      seconds of saving a file, without waiting for a full CloudFormation deployment each time. Which command fits?
+    options:
+      A: "sam local invoke."
+      B: "sam package."
+      C: "sam deploy --guided after every change."
+      D: "sam sync --watch (development stacks only)."
+    answer: [D]
+    explanation: |
+      sam sync updates code through service APIs and watches local files. It is meant for development, not for
+      production stacks.
+      A runs the function locally, not in AWS.
+      B only uploads artifacts and rewrites the template.
+      C runs a full deployment every time.
+    refs: [book/src/ch16-sam-serverless-deploy.md]
+
+  - id: sam-006
+    domain: 3
+    task: "3.4"
+    difficulty: 2
+    question: |
+      A SAM deployment uses a PreTraffic hook function to run smoke tests against the new version before any
+      traffic shifts. How does the hook tell CodeDeploy that the tests failed?
+    options:
+      A: "It deletes the new version."
+      B: "It calls codedeploy:PutLifecycleEventHookExecutionStatus with status Failed, which stops the deployment and rolls back."
+      C: "It raises an exception, which CodeDeploy retries forever."
+      D: "It writes FAILED to CloudWatch Logs."
+    answer: [B]
+    explanation: |
+      Hooks receive a deployment ID and a lifecycle event execution ID, and must report Succeeded or Failed with
+      PutLifecycleEventHookExecutionStatus. Their role needs that permission.
+      A is destructive.
+      C: CodeDeploy does not retry forever. Without a status report the lifecycle event eventually times out
+      and the deployment fails, which is slow and unclear.
+      D is not read by CodeDeploy.
+    refs: [book/src/ch16-sam-serverless-deploy.md]
+
+  - id: sam-007
+    domain: 3
+    task: "3.3"
+    difficulty: 1
+    question: |
+      What turns a CloudFormation template into an AWS SAM template?
+    options:
+      A: "A samconfig.toml file in the same folder."
+      B: "The line Transform: AWS::Serverless-2016-10-31."
+      C: "Using YAML instead of JSON."
+      D: "A Globals section."
+    answer: [B]
+    explanation: |
+      The SAM transform expands AWS::Serverless::* resources into standard CloudFormation during deployment.
+      A stores CLI settings.
+      C: both formats work.
+      D is optional and requires the transform.
+    refs: [book/src/ch16-sam-serverless-deploy.md]
+
+  - id: sam-008
+    domain: 2
+    task: "2.1"
+    difficulty: 2
+    question: |
+      In a SAM template, a function must read and write items in the OrdersTable resource only. Which Policies
+      entry follows least privilege with the LEAST effort?
+    options:
+      A: "- AWSLambdaBasicExecutionRole"
+      B: "- DynamoDBCrudPolicy: {TableName: !Ref OrdersTable}"
+      C: "- AdministratorAccess"
+      D: "- AmazonDynamoDBFullAccess"
+    answer: [B]
+    explanation: |
+      SAM policy templates generate policies scoped to the named resource. A Connector resource is another
+      option.
+      A only allows writing logs.
+      C and D grant far too much.
+    refs: [book/src/ch16-sam-serverless-deploy.md]
+
+  - id: sam-009
+    domain: 3
+    task: "3.2"
+    difficulty: 2
+    question: |
+      The same SAM application must be deployed to dev, staging and prod with different parameter values and stack
+      names, from the same template. What is the simplest approach with the SAM CLI?
+    options:
+      A: "Define one environment per stage in samconfig.toml and deploy with sam deploy --config-env <env>."
+      B: "Use sam sync for production deployments."
+      C: "Maintain three copies of the template."
+      D: "Edit the template before each deployment."
+    answer: [A]
+    explanation: |
+      samconfig.toml stores the stack name, parameter overrides, Region and other settings per environment,
+      while the template stays the same.
+      B: sam sync is meant for development stacks.
+      C and D are error-prone.
+    refs: [book/src/ch16-sam-serverless-deploy.md]
+
+  - id: sam-010
+    domain: 3
+    task: "3.4"
+    difficulty: 2
+    question: |
+      An SQS event source mapping and an API Gateway integration both point to a function's unqualified ARN. A bad
+      code update immediately broke both. How should the team design for instant rollbacks?
+    options:
+      A: "Reduce the function's reserved concurrency during deployments."
+      B: "Publish versions and point every trigger at an alias such as live. Releasing or rolling back means moving the alias."
+      C: "Point the triggers at $LATEST explicitly."
+      D: "Keep a backup copy of the code in S3."
+    answer: [B]
+    explanation: |
+      Versions are immutable snapshots of code and configuration, and aliases are movable pointers. Moving an
+      alias back is instant, and triggers do not need to be reconfigured.
+      A does not help.
+      C is what happened: $LATEST changes with every update.
+      D requires a redeployment.
+    refs: [book/src/ch16-sam-serverless-deploy.md]
+
+  - id: sam-011
+    domain: 3
+    task: "3.4"
+    difficulty: 2
+    question: |
+      A front-end team builds a React application from a GitHub repository. Each branch (main, dev, feature
+      branches) must be deployed automatically to its own URL, with previews for pull requests. Which service fits
+      with the LEAST effort?
+    options:
+      A: "An S3 bucket per branch, with a CodePipeline per bucket."
+      B: "AWS Amplify Hosting connected to the repository."
+      C: "A CloudFront distribution in front of one bucket."
+      D: "Elastic Beanstalk with one environment per branch."
+    answer: [B]
+    explanation: |
+      Amplify Hosting provides CI/CD for front ends, with per-branch environments, pull request previews,
+      custom domains and HTTPS.
+      A and D require building and maintaining that process.
+      C does not deploy branches.
+    refs: [book/src/ch16-sam-serverless-deploy.md]
+
+  - id: sam-012
+    domain: 3
+    task: "3.4"
+    difficulty: 2
+    question: |
+      A developer wants to send 10% of an alias's traffic to version 8 of a function while version 7 keeps the
+      remaining 90%, without CodeDeploy. Which API call does this?
+    options:
+      A: "put_function_concurrency(FunctionName=\"orders:8\", ReservedConcurrentExecutions=10)"
+      B: "update_alias(Name=\"live\", FunctionVersion=\"8\", RoutingConfig={\"AdditionalVersionWeights\": {\"7\": 0.1}})"
+      C: "publish_version(FunctionName=\"orders\", Weight=0.1)"
+      D: "update_alias(Name=\"live\", FunctionVersion=\"7\", RoutingConfig={\"AdditionalVersionWeights\": {\"8\": 0.1}})"
+    answer: [D]
+    explanation: |
+      The alias's FunctionVersion receives the main share, and AdditionalVersionWeights sends the given
+      fraction to another version (exercise lambda_8).
+      A sets concurrency, not routing.
+      B sends 90% to version 8.
+      C: publish_version has no weight.
+    refs: [book/src/ch16-sam-serverless-deploy.md]
+
+  - id: sam-013
+    domain: 3
+    task: "3.3"
+    difficulty: 1
+    question: |
+      Twenty functions in a SAM template must use the same runtime, timeout, architecture and tracing settings.
+      How can the developer avoid repeating these properties?
+    options:
+      A: "Use a nested stack per function."
+      B: "Set them in samconfig.toml."
+      C: "Declare them once in the Globals section under Function."
+      D: "Define them as Parameters with default values."
+    answer: [C]
+    explanation: |
+      Globals sets defaults for every AWS::Serverless::Function (and APIs), and individual functions can
+      override them.
+      A adds complexity.
+      B configures the CLI, not resources.
+      D still requires referencing the parameters in every function.
+    refs: [book/src/ch16-sam-serverless-deploy.md]

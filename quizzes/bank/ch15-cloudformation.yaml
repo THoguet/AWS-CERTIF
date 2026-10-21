@@ -1,0 +1,275 @@
+chapter: ch15
+topic: cloudformation
+questions:
+  - id: cloudformation-001
+    domain: 3
+    task: "3.3"
+    difficulty: 1
+    question: |
+      A CloudFormation template declares an SQS queue OrdersQueue and a dead-letter queue OrdersDLQ. The
+      RedrivePolicy of OrdersQueue must reference the dead-letter queue. Which expression returns the value
+      required for deadLetterTargetArn?
+    options:
+      A: "!ImportValue OrdersDLQ"
+      B: "!GetAtt OrdersDLQ.Arn"
+      C: "!Sub \"${OrdersDLQ}\""
+      D: "!Ref OrdersDLQ"
+    answer: [B]
+    explanation: |
+      For an SQS queue, !Ref returns the queue URL, and the ARN comes from !GetAtt Queue.Arn.
+      A reads a value exported by another stack.
+      C is equivalent to !Ref, so it also returns the URL.
+      D returns the URL.
+    refs: [book/src/ch15-cloudformation-cdk.md]
+
+  - id: cloudformation-002
+    domain: 3
+    task: "3.3"
+    difficulty: 1
+    question: |
+      A stack contains an S3 bucket with years of customer uploads. The team wants to be able to delete the
+      stack during a re-architecture without losing the bucket or its objects. What should be added to the
+      bucket resource?
+    options:
+      A: "DeletionPolicy: Snapshot"
+      B: "Termination protection on the stack."
+      C: "DeletionPolicy: Retain"
+      D: "A stack policy that denies Update:Delete on the bucket."
+    answer: [C]
+    explanation: |
+      With DeletionPolicy Retain, CloudFormation leaves the resource in place when it removes it from the
+      stack or deletes the stack.
+      A is not supported for S3 buckets (it applies to RDS, EBS volumes, ElastiCache, Redshift and similar).
+      B prevents deleting the stack at all, which is not the goal.
+      D protects resources during stack updates, not stack deletion.
+    refs: [book/src/ch15-cloudformation-cdk.md]
+
+  - id: cloudformation-003
+    domain: 3
+    task: "3.3"
+    difficulty: 2
+    question: |
+      A network team manages a VPC stack. Ten application teams deploy their own stacks, with their own release
+      schedules, and each needs the VPC ID and subnet IDs. Which approach should be used?
+    options:
+      A: "Export the values from the network stack's Outputs and read them with !ImportValue in the application stacks."
+      B: "Use a StackSet to deploy the VPC with every application."
+      C: "Hard-code the IDs in each application template."
+      D: "Make the network template a nested stack inside every application stack."
+    answer: [A]
+    explanation: |
+      Cross-stack references share outputs between stacks that have independent lifecycles. An exported value
+      cannot be changed or deleted while another stack imports it.
+      B deploys copies of a template to accounts and Regions, which is not sharing.
+      C breaks when the network changes.
+      D would create a separate VPC inside each application stack.
+    refs: [book/src/ch15-cloudformation-cdk.md]
+
+  - id: cloudformation-004
+    domain: 3
+    task: "3.3"
+    difficulty: 2
+    question: |
+      Before updating a production stack, a developer wants to know which resources will be modified and
+      whether any of them will be replaced. What should the developer do?
+    options:
+      A: "Run cfn-lint on the template."
+      B: "Create a change set, review it, then execute it."
+      C: "Run drift detection on the stack."
+      D: "Update the stack directly and watch the events."
+    answer: [B]
+    explanation: |
+      A change set previews additions, modifications and removals, including whether each change requires
+      replacement, before anything happens.
+      A checks syntax and best practices but does not compare with the deployed stack.
+      C compares the deployed resources with the current template, not with the new one.
+      D applies the changes without any preview.
+    refs: [book/src/ch15-cloudformation-cdk.md]
+
+  - id: cloudformation-005
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      A developer changed the TableName property of a DynamoDB table in a template and updated the stack. The
+      update succeeded, but the application now finds an empty table. What happened?
+    options:
+      A: "Changing TableName requires replacement, so CloudFormation created a new empty table and deleted the old one."
+      B: "DynamoDB tables are emptied whenever their stack is updated."
+      C: "The update failed and the stack rolled back."
+      D: "CloudFormation renamed the table in place and the data is being copied in the background."
+    answer: [A]
+    explanation: |
+      Some properties cannot be changed in place. Updating them makes CloudFormation create a new physical
+      resource and delete the old one, and the data is not migrated. Review change sets for "Replacement: True"
+      and use DeletionPolicy and UpdateReplacePolicy Retain on stateful resources.
+      B is false.
+      C contradicts the scenario.
+      D: DynamoDB cannot rename a table.
+    refs: [book/src/ch15-cloudformation-cdk.md]
+
+  - id: cloudformation-006
+    domain: 3
+    task: "3.3"
+    difficulty: 2
+    question: |
+      A single template must create an SNS alarm topic only when the Env parameter equals prod, and use a
+      300-second queue visibility timeout in prod but 60 seconds elsewhere. Which template features should
+      be used?
+    options:
+      A: "Two separate templates, one per environment."
+      B: "A condition defined with !Equals, a Condition attribute on the topic, and !If in the queue property."
+      C: "A Mappings section only."
+      D: "A custom resource that deletes the topic outside prod."
+    answer: [B]
+    explanation: |
+      Conditions compute booleans from parameters. The Condition attribute decides whether a resource is
+      created, and !If picks a property value (!Ref AWS::NoValue removes a property).
+      A duplicates code.
+      C provides lookups but cannot skip a resource.
+      D is far more complex than needed.
+    refs: [book/src/ch15-cloudformation-cdk.md]
+
+  - id: cloudformation-007
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      A stack creation hangs for an hour on a custom resource backed by a Lambda function, and then fails. The
+      function's logs show that it ran without errors. What is the MOST likely cause?
+    options:
+      A: "Custom resources only support Python."
+      B: "The function never sent a SUCCESS or FAILED response to the presigned S3 URL (ResponseURL) in the event."
+      C: "The function must be in the same VPC as the stack."
+      D: "The function's memory is too low."
+    answer: [B]
+    explanation: |
+      CloudFormation waits for the custom resource's response at ResponseURL (the cfnresponse helper sends
+      it). Without a response, the stack waits until the timeout (1 hour by default, configurable with
+      ServiceTimeout). Handle Delete events too, or stack deletion hangs the same way.
+      A and C are false.
+      D would show errors or timeouts in the logs.
+    refs: [book/src/ch15-cloudformation-cdk.md]
+
+  - id: cloudformation-008
+    domain: 3
+    task: "3.3"
+    difficulty: 2
+    question: |
+      Deploying a template that creates an IAM role with an explicit RoleName fails with "Requires capabilities:
+      [CAPABILITY_NAMED_IAM]". What should the developer do?
+    options:
+      A: "Remove the role and create it manually."
+      B: "Deploy the stack in us-east-1, where IAM is managed."
+      C: "Acknowledge the capability, e.g. aws cloudformation deploy ... --capabilities CAPABILITY_NAMED_IAM."
+      D: "Add a DependsOn attribute to the role."
+    answer: [C]
+    explanation: |
+      Templates that create IAM resources need explicit acknowledgment: CAPABILITY_IAM, or CAPABILITY_NAMED_IAM
+      when resources have custom names. Templates with macros such as the SAM transform need
+      CAPABILITY_AUTO_EXPAND.
+      A, B and D do not address the error.
+    refs: [book/src/ch15-cloudformation-cdk.md]
+
+  - id: cloudformation-009
+    domain: 3
+    task: "3.3"
+    difficulty: 2
+    question: |
+      A security team must deploy the same IAM roles and AWS Config rules to 40 accounts in several Regions,
+      including accounts created in the future. Which CloudFormation feature fits?
+    options:
+      A: "Change sets."
+      B: "Nested stacks."
+      C: "Cross-stack references."
+      D: "StackSets (with service-managed permissions through AWS Organizations and automatic deployment)."
+    answer: [D]
+    explanation: |
+      StackSets deploy one template to many accounts and Regions. With Organizations integration, new accounts
+      in a target OU receive the stack automatically.
+      A previews an update to one stack.
+      B and C work within one account and Region.
+    refs: [book/src/ch15-cloudformation-cdk.md]
+
+  - id: cloudformation-010
+    domain: 3
+    task: "3.3"
+    difficulty: 2
+    question: |
+      A template launches EC2 instances that install software at boot through user data. The stack reports
+      CREATE_COMPLETE before the software is ready, and sometimes the installation fails without the stack
+      noticing. How can the stack wait for a successful installation?
+    options:
+      A: "Set DeletionPolicy: Retain on the instance."
+      B: "Add a CreationPolicy to the instance (or Auto Scaling group) and call cfn-signal at the end of the user data script."
+      C: "Increase the stack timeout."
+      D: "Add DependsOn to the instance."
+    answer: [B]
+    explanation: |
+      With a CreationPolicy, CloudFormation waits for success signals (sent with cfn-signal) before marking the
+      resource complete, and fails or rolls back if they do not arrive in time. cfn-init applies
+      AWS::CloudFormation::Init metadata.
+      A and C are unrelated.
+      D orders resource creation but does not wait for the software.
+    refs: [book/src/ch15-cloudformation-cdk.md]
+
+  - id: cloudformation-011
+    domain: 3
+    task: "3.3"
+    difficulty: 1
+    question: |
+      A developer runs cdk deploy for the first time in a new account and Region and receives an error saying
+      that the environment has not been bootstrapped. What should the developer do?
+    options:
+      A: "Convert the app to L1 constructs."
+      B: "Run cdk synth again."
+      C: "Upgrade the Python runtime of the CDK app."
+      D: "Run cdk bootstrap for that account and Region, which creates the CDKToolkit stack used to stage assets."
+    answer: [D]
+    explanation: |
+      Bootstrapping creates the S3 bucket, ECR repository and IAM roles that CDK uses for deployments and
+      assets, once per account and Region.
+      A and C do not create the missing resources.
+      B only generates templates.
+    refs: [book/src/ch15-cloudformation-cdk.md]
+
+  - id: cloudformation-012
+    domain: 3
+    task: "3.3"
+    difficulty: 2
+    question: |
+      A CDK app defines a DynamoDB table and a Lambda function that must read and write items in it. How
+      should the developer grant the permissions with the LEAST effort while following least privilege?
+    options:
+      A: "Use an L1 CfnTable construct, which grants permissions automatically."
+      B: "Attach the AmazonDynamoDBFullAccess managed policy to the function's role."
+      C: "Write an inline policy with dynamodb:* on all resources."
+      D: "Call table.grant_read_write_data(fn), which adds a policy scoped to the table to the function's role."
+    answer: [D]
+    explanation: |
+      L2 constructs provide grant methods that generate least-privilege IAM statements for the specific
+      resource.
+      A: L1 constructs map 1:1 to CloudFormation and grant nothing automatically.
+      B and C grant far too much.
+    refs: [book/src/ch15-cloudformation-cdk.md]
+
+  - id: cloudformation-013
+    domain: 3
+    task: "3.3"
+    difficulty: 2
+    question: |
+      A template must always launch the latest Amazon Linux 2023 AMI in every Region without anyone updating
+      AMI IDs by hand. Which approach is BEST?
+    options:
+      A: "A custom resource that searches for AMIs by name."
+      B: "A String parameter that each deployer fills in."
+      C: "A Mappings section with one AMI ID per Region, updated monthly."
+      D: "A parameter of type AWS::SSM::Parameter::Value<AWS::EC2::Image::Id> whose default is the public SSM parameter for the latest AMI."
+    answer: [D]
+    explanation: |
+      SSM parameter types are resolved at deployment time. AWS publishes the latest AMI IDs as public
+      parameters (/aws/service/ami-amazon-linux-latest/...).
+      A is more code than necessary.
+      B relies on people.
+      C needs manual updates.
+    refs: [book/src/ch15-cloudformation-cdk.md]

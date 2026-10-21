@@ -1,0 +1,209 @@
+chapter: ch19
+topic: testing
+questions:
+  - id: testing-001
+    domain: 3
+    task: "3.2"
+    difficulty: 2
+    question: |
+      A function's unit tests use moto and all pass. After deployment, the function fails with AccessDenied because
+      its execution role is missing a permission. Which practice would have caught this before production?
+    options:
+      A: "Running the unit tests with sam local invoke."
+      B: "Integration tests that run against the stack deployed to a dev or test environment in AWS, since mocks do not evaluate IAM policies."
+      C: "More unit tests with moto."
+      D: "Increasing code coverage to 100%."
+    answer: [B]
+    explanation: |
+      Mocks and local emulators do not enforce IAM, resource policies or many service limits. AWS recommends
+      testing in the cloud for integration, with ephemeral or dedicated test stacks.
+      A runs locally with the developer's own credentials, not the function's role.
+      C and D test the same thing again.
+    refs: [book/src/ch19-testing.md]
+
+  - id: testing-002
+    domain: 1
+    task: "1.1"
+    difficulty: 2
+    question: |
+      A developer must unit test a Python Lambda handler that reads and writes a DynamoDB table. The tests must run
+      in CI in seconds, without AWS credentials or any deployed resources. Which approach fits?
+    options:
+      A: "Skip unit tests and rely on end-to-end tests."
+      B: "Use the production table with a test prefix on keys."
+      C: "Deploy the stack to a shared dev account for every test run."
+      D: "Mock AWS with a library such as moto (or botocore Stubber) and call the handler directly with test events."
+    answer: [D]
+    explanation: |
+      moto implements AWS APIs in memory, so boto3 code runs unchanged. Stubber queues canned responses and
+      errors. Both make unit tests fast and isolated.
+      A gives slow feedback.
+      B is dangerous.
+      C is integration testing, which is slower and needs credentials.
+    refs: [book/src/ch19-testing.md]
+
+  - id: testing-003
+    domain: 1
+    task: "1.1"
+    difficulty: 2
+    question: |
+      A developer wants a unit test that checks how a function handles a ThrottlingException returned by SQS
+      send_message, without calling AWS. Which tool is designed to inject this error into a real boto3 client?
+    options:
+      A: "AWS Fault Injection Service."
+      B: "SQS dead-letter queues."
+      C: "CloudWatch Synthetics."
+      D: "botocore.stub.Stubber with add_client_error(\"send_message\", service_error_code=\"ThrottlingException\")."
+    answer: [D]
+    explanation: |
+      Stubber intercepts calls on a client and returns queued responses or errors, which makes it ideal for
+      error-path tests.
+      A injects faults into real infrastructure (chaos testing).
+      B stores failed messages.
+      C runs canary scripts against deployed endpoints.
+    refs: [book/src/ch19-testing.md]
+
+  - id: testing-004
+    domain: 3
+    task: "3.3"
+    difficulty: 2
+    question: |
+      Integration tests must run against version 12 of a Lambda function behind API Gateway, while production
+      traffic keeps using version 11 through the same API. How can this be arranged?
+    options:
+      A: "Run the tests with sam local invoke against version 12."
+      B: "Update $LATEST and run the tests quickly."
+      C: "Create a new AWS account for each test run."
+      D: "Point a test alias at version 12 and a test stage of the API at that alias (with a stage variable), while the prod stage keeps using the live alias on version 11."
+    answer: [D]
+    explanation: |
+      Aliases and API Gateway stages provide stable test endpoints for approved versions, which are then
+      promoted by moving the live alias.
+      A runs locally, not against the deployed version.
+      B affects production if it uses $LATEST.
+      C is heavy for this need.
+    refs: [book/src/ch19-testing.md]
+
+  - id: testing-005
+    domain: 4
+    task: "4.2"
+    difficulty: 2
+    question: |
+      A team wants to detect that the checkout API of its website is broken even at night, when there are no real
+      users, and receive an alarm within minutes. What should it use?
+    options:
+      A: "X-Ray sampling rules."
+      B: "Lambda reserved concurrency."
+      C: "CloudTrail data events."
+      D: "Amazon CloudWatch Synthetics canaries that call the API on a schedule, with an alarm on their success metric."
+    answer: [D]
+    explanation: |
+      Canaries are scheduled scripts that exercise endpoints and user journeys, publish metrics, and alarm
+      when they fail.
+      A and C observe real traffic and API calls, so there is nothing to observe without users.
+      B is unrelated.
+    refs: [book/src/ch19-testing.md]
+
+  - id: testing-006
+    domain: 3
+    task: "3.3"
+    difficulty: 1
+    question: |
+      A developer needs a realistic SQS event payload to test a Lambda function locally with the SAM CLI. Which
+      command generates one?
+    options:
+      A: "sam logs --tail"
+      B: "sam validate"
+      C: "sam local generate-event sqs receive-message"
+      D: "aws sqs receive-message on the production queue"
+    answer: [C]
+    explanation: |
+      generate-event produces sample events for many services, which can then be edited and passed to sam local
+      invoke -e. The Lambda console also supports shareable test events.
+      A shows logs.
+      B checks the template.
+      D consumes real messages from production.
+    refs: [book/src/ch19-testing.md]
+
+  - id: testing-007
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      A Lambda function behind an API Gateway proxy integration passes all unit tests, but crashes in production
+      with "TypeError: 'NoneType' object is not subscriptable" when a request has no query string. The tests built
+      events with queryStringParameters set to {}. What does this show?
+    options:
+      A: "The test events did not match real events: queryStringParameters is null (None) when there is no query string, so the code must handle it."
+      B: "The function needs more memory."
+      C: "API Gateway strips query strings in production."
+      D: "The unit tests should mock the json module."
+    answer: [A]
+    explanation: |
+      Real proxy events contain null for missing query strings and path parameters, and the body is a string or
+      null. Tests should use realistic events (sam local generate-event, captured events) (exercise sam_2).
+      B, C and D are false or unrelated.
+    refs: [book/src/ch19-testing.md, book/src/ch22-troubleshooting.md]
+
+  - id: testing-008
+    domain: 3
+    task: "3.3"
+    difficulty: 2
+    question: |
+      A team wants unit tests generated for an existing module directly in the IDE, as a starting point to raise
+      code coverage. Which AWS tool provides this?
+    options:
+      A: "AWS CodeArtifact."
+      B: "Amazon Q Developer (for example with the /test command)."
+      C: "AWS X-Ray."
+      D: "Amazon Inspector."
+    answer: [B]
+    explanation: |
+      Amazon Q Developer can generate unit tests for selected code in supported IDEs. Review the generated
+      tests like any other code.
+      A stores packages.
+      C traces requests.
+      D scans for vulnerabilities.
+    refs: [book/src/ch19-testing.md]
+
+  - id: testing-009
+    domain: 3
+    task: "3.3"
+    difficulty: 2
+    question: |
+      A developer wants to check the input and output processing (InputPath, Parameters, ResultSelector,
+      ResultPath) and error handling of a single Step Functions state without deploying and running the whole
+      state machine. What should be used?
+    options:
+      A: "An Express workflow with logging set to ALL."
+      B: "The Step Functions TestState API."
+      C: "sam local start-api."
+      D: "A CloudWatch Synthetics canary."
+    answer: [B]
+    explanation: |
+      TestState runs one state definition with a given input and returns its output, error or next state.
+      A requires deploying and running a workflow.
+      C emulates API Gateway.
+      D tests deployed endpoints.
+    refs: [book/src/ch19-testing.md, book/src/ch10-streaming-orchestration.md]
+
+  - id: testing-010
+    domain: 3
+    task: "3.3"
+    difficulty: 2
+    question: |
+      A pipeline must stop a release when unit tests fail, and developers want to browse test results and trends
+      in the AWS console. What should the CodeBuild project use?
+    options:
+      A: "CloudTrail data events for CodeBuild."
+      B: "An artifacts section that uploads the test logs to S3."
+      C: "A post_build phase that emails the results."
+      D: "A reports section in the buildspec pointing to the JUnit XML files produced by the tests, with the test command failing the build on failure."
+    answer: [D]
+    explanation: |
+      CodeBuild test reports parse JUnit, Cucumber, TestNG, NUnit and coverage files and show results and
+      trends. A failing test command makes the build, and the pipeline, fail.
+      A records API calls.
+      B stores files without analysis.
+      C is custom and does not stop the release by itself.
+    refs: [book/src/ch19-testing.md, book/src/ch17-cicd.md]

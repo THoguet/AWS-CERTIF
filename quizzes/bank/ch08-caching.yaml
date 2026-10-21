@@ -10,15 +10,15 @@ questions:
       change, customers keep seeing the old price for up to an hour. Which change gives fresh prices on reads
       while keeping the cache effective?
     options:
-      A: "Also use write-through: update (or delete) the cache entry whenever the price is updated in the database."
-      B: "Increase the TTL to 24 hours."
+      A: "Increase the TTL to 24 hours."
+      B: "Also use write-through: update (or delete) the cache entry whenever the price is updated in the database."
       C: "Remove the TTL entirely."
       D: "Switch from Redis to Memcached."
-    answer: [A]
+    answer: [B]
     explanation: |
       Write-through (or invalidation on write) keeps the cache in sync on updates, while lazy loading still
       fills it on misses.
-      B and C make staleness worse.
+      A and C make staleness worse.
       D changes the engine, not the strategy.
     refs: [book/src/ch08-caching-databases-cdn.md]
 
@@ -29,16 +29,16 @@ questions:
     question: |
       Which statement describes the lazy loading (cache-aside) strategy?
     options:
-      A: "The application reads the cache first. On a miss it reads the database and writes the result to the cache."
-      B: "Every database write is also written to the cache immediately."
-      C: "The cache pre-loads the entire database at startup."
-      D: "The database pushes changes to the cache through triggers."
-    answer: [A]
+      A: "Every database write is also written to the cache immediately."
+      B: "The cache pre-loads the entire database at startup."
+      C: "The database pushes changes to the cache through triggers."
+      D: "The application reads the cache first. On a miss it reads the database and writes the result to the cache."
+    answer: [D]
     explanation: |
       Cache-aside populates the cache on demand, so only requested data is cached. The downsides are a miss
       penalty and possibly stale data.
-      B is write-through.
-      C and D are not the lazy loading strategy.
+      A is write-through.
+      B and C are not the lazy loading strategy.
     refs: [book/src/ch08-caching-databases-cdn.md]
 
   - id: caching-003
@@ -50,17 +50,17 @@ questions:
       memory, so users are logged out when instances are replaced. Which solution makes the application stateless
       with the LEAST latency impact?
     options:
-      A: "Store sessions in Amazon ElastiCache (Redis/Valkey) and read them on each request."
-      B: "Enable sticky sessions on the ALB."
-      C: "Store sessions in S3 Glacier."
-      D: "Store sessions on the instances' EBS volumes."
-    answer: [A]
+      A: "Enable sticky sessions on the ALB."
+      B: "Store sessions in Amazon ElastiCache (Redis/Valkey) and read them on each request."
+      C: "Store sessions on the instances' EBS volumes."
+      D: "Store sessions in S3 Glacier."
+    answer: [B]
     explanation: |
       An in-memory shared store makes sessions available to every instance with sub-millisecond latency
       (DynamoDB is another option).
-      B still loses sessions when an instance dies.
-      C is far too slow.
-      D is still per-instance.
+      A still loses sessions when an instance dies.
+      C is still per-instance.
+      D is far too slow.
     refs: [book/src/ch08-caching-databases-cdn.md]
 
   - id: caching-004
@@ -71,16 +71,16 @@ questions:
       A game needs a real-time leaderboard ranking millions of players by score, with fast top-N queries. Which
       service and feature fit BEST?
     options:
-      A: "Amazon ElastiCache for Redis (or Valkey) with sorted sets."
-      B: "Amazon ElastiCache for Memcached."
+      A: "Amazon ElastiCache for Memcached."
+      B: "Amazon RDS read replicas."
       C: "Amazon S3 Select."
-      D: "Amazon RDS read replicas."
-    answer: [A]
+      D: "Amazon ElastiCache for Redis (or Valkey) with sorted sets."
+    answer: [D]
     explanation: |
       Redis/Valkey sorted sets keep members ordered by score, with logarithmic-time updates and range queries.
-      B only supports simple key/value pairs.
+      A only supports simple key/value pairs.
+      B is slower and needs manual ranking queries.
       C is not a database.
-      D is slower and needs manual ranking queries.
     refs: [book/src/ch08-caching-databases-cdn.md]
 
   - id: caching-005
@@ -92,16 +92,16 @@ questions:
       database rejects connections with "too many clients". What is the BEST solution?
     options:
       A: "Put Amazon RDS Proxy between the functions and the database to pool and share connections."
-      B: "Add more Aurora read replicas."
+      B: "Open a new connection in every invocation and close it at the end."
       C: "Increase the Lambda timeout."
-      D: "Open a new connection in every invocation and close it at the end."
+      D: "Add more Aurora read replicas."
     answer: [A]
     explanation: |
       RDS Proxy maintains a pool of connections and multiplexes many client connections onto it. It also
       speeds up failovers and supports IAM authentication.
-      B does not reduce writer connections.
+      B makes the problem worse.
       C is unrelated.
-      D makes the problem worse.
+      D does not reduce writer connections.
     refs: [book/src/ch08-caching-databases-cdn.md]
 
   - id: caching-006
@@ -112,15 +112,15 @@ questions:
       A reporting dashboard runs heavy read queries that slow down the primary RDS MySQL instance used by the
       application. What should the developer do?
     options:
-      A: "Create a read replica and send the dashboard's queries to the replica endpoint."
-      B: "Enable Multi-AZ and send the dashboard queries to the standby."
-      C: "Increase the backup retention period."
-      D: "Enable Performance Insights."
-    answer: [A]
+      A: "Enable Multi-AZ and send the dashboard queries to the standby."
+      B: "Increase the backup retention period."
+      C: "Enable Performance Insights."
+      D: "Create a read replica and send the dashboard's queries to the replica endpoint."
+    answer: [D]
     explanation: |
       Read replicas scale read traffic (asynchronous replication, possibly slightly stale data).
-      B: the classic Multi-AZ standby cannot serve reads, it exists for high availability.
-      C and D do not offload reads.
+      A: the classic Multi-AZ standby cannot serve reads, it exists for high availability.
+      B and C do not offload reads.
     refs: [book/src/ch08-caching-databases-cdn.md]
 
   - id: caching-007
@@ -131,16 +131,16 @@ questions:
       Premium members stream videos made of thousands of small segment files from a private S3 bucket through
       CloudFront. Access must be restricted to members. Which solution fits BEST?
     options:
-      A: "Keep the bucket private with Origin Access Control and issue CloudFront signed cookies to members."
-      B: "Generate an S3 presigned URL for every segment."
-      C: "Make the bucket public and obscure the file names."
+      A: "Make the bucket public and obscure the file names."
+      B: "Keep the bucket private with Origin Access Control and issue CloudFront signed cookies to members."
+      C: "Generate an S3 presigned URL for every segment."
       D: "Use CloudFront signed URLs, one per segment, distributed in the HTML page."
-    answer: [A]
+    answer: [B]
     explanation: |
       Signed cookies authorize many files at once, which fits streaming. OAC keeps S3 reachable only through
       CloudFront.
-      B bypasses CloudFront and is impractical.
-      C is insecure.
+      A is insecure.
+      C bypasses CloudFront and is impractical.
       D works for single files but is impractical for thousands of segments.
     refs: [book/src/ch08-caching-databases-cdn.md]
 
@@ -154,15 +154,15 @@ questions:
       developer use?
     options:
       A: "CloudFront Functions on viewer request/response events."
-      B: "Lambda@Edge on origin request events."
-      C: "An API Gateway in front of CloudFront."
-      D: "AWS WAF custom rules."
+      B: "An API Gateway in front of CloudFront."
+      C: "AWS WAF custom rules."
+      D: "Lambda@Edge on origin request events."
     answer: [A]
     explanation: |
       CloudFront Functions are lightweight JavaScript functions running in under a millisecond at the edge,
       ideal for header manipulation and redirects, and much cheaper than Lambda@Edge.
-      B suits heavier logic with network access.
-      C and D are not meant for this.
+      B and C are not meant for this.
+      D suits heavier logic with network access.
     refs: [book/src/ch08-caching-databases-cdn.md]
 
   - id: caching-009
@@ -174,15 +174,15 @@ questions:
       model files and intermediate results). Which storage option fits?
     options:
       A: "Amazon EFS mounted on the functions."
-      B: "Each function's /tmp directory."
-      C: "Amazon EBS volumes attached to the functions."
-      D: "Lambda environment variables."
+      B: "Amazon EBS volumes attached to the functions."
+      C: "Lambda environment variables."
+      D: "Each function's /tmp directory."
     answer: [A]
     explanation: |
       EFS is a shared, persistent NFS file system that Lambda functions (in a VPC) can mount.
-      B is ephemeral and private to each execution environment.
-      C cannot be attached to Lambda.
-      D is limited to 4 KB.
+      B cannot be attached to Lambda.
+      C is limited to 4 KB.
+      D is ephemeral and private to each execution environment.
     refs: [book/src/ch08-caching-databases-cdn.md]
 
   - id: caching-010
@@ -193,14 +193,14 @@ questions:
       Analysts want to run ad hoc SQL queries over terabytes of Parquet log files stored in S3, without managing
       servers or loading the data into a database. Which service should they use?
     options:
-      A: "Amazon Athena"
-      B: "Amazon RDS for PostgreSQL"
-      C: "Amazon DynamoDB with PartiQL"
-      D: "Amazon ElastiCache"
-    answer: [A]
+      A: "Amazon ElastiCache"
+      B: "Amazon DynamoDB with PartiQL"
+      C: "Amazon RDS for PostgreSQL"
+      D: "Amazon Athena"
+    answer: [D]
     explanation: |
       Athena is serverless SQL directly on S3, priced per data scanned. Columnar formats like Parquet and
       partitioning reduce cost.
+      A is an in-memory cache.
       B and C require loading the data.
-      D is an in-memory cache.
     refs: [book/src/ch08-caching-databases-cdn.md]

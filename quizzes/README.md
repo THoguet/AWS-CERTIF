@@ -32,7 +32,10 @@ questions:
     refs: [book/src/ch05-lambda.md]
 ```
 
-Validate after editing: `uv run awslings validate`.
+Rules checked by `uv run awslings validate` (run it after editing): unique ids, domain 1-4, at least
+4 options, answers among the options, "(Choose TWO.)"/"(Choose THREE.)" matching the number of answers,
+and correct answers spread across the letters (no letter above 40% of single-answer questions). When you
+add a question, put the correct option at a random position and make the explanation's letters match.
 
 ## History
 

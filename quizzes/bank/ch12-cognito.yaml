@@ -1,0 +1,252 @@
+chapter: ch12
+topic: cognito
+questions:
+  - id: cognito-001
+    domain: 2
+    task: "2.1"
+    difficulty: 2
+    question: |
+      A mobile app needs users to sign up and sign in, and then upload photos directly to an S3 bucket using
+      temporary AWS credentials scoped to each user. Which combination of Cognito features is required?
+    options:
+      A: "A Cognito user pool for authentication and a Cognito identity pool to exchange the user pool token for temporary AWS credentials."
+      B: "A Cognito user pool only, since its access token can be used to sign S3 requests."
+      C: "A Cognito identity pool only, with unauthenticated access."
+      D: "IAM users created for each app user."
+    answer: [A]
+    explanation: |
+      User pools authenticate and issue JWTs. Identity pools exchange those tokens for STS credentials of an
+      IAM role, which are needed to call S3 directly with SigV4.
+      B: JWTs cannot sign AWS API requests.
+      C gives every user the same guest permissions, with no sign-in.
+      D does not scale and is insecure.
+    refs: [book/src/ch12-cognito.md]
+
+  - id: cognito-002
+    domain: 2
+    task: "2.1"
+    difficulty: 2
+    question: |
+      A multi-tenant SaaS application authorizes API requests based on a tenant_id claim. The claim must be
+      included in every token issued by the Cognito user pool, based on a lookup in a DynamoDB table. What
+      should the developer implement?
+    options:
+      A: "An API Gateway mapping template that injects the claim."
+      B: "A custom message Lambda trigger."
+      C: "A post confirmation Lambda trigger."
+      D: "A pre token generation Lambda trigger that adds the tenant_id claim."
+    answer: [D]
+    explanation: |
+      The pre token generation trigger runs before tokens are issued and can add, modify or suppress claims.
+      A cannot alter signed tokens.
+      B customizes emails and SMS.
+      C runs once after sign-up confirmation.
+    refs: [book/src/ch12-cognito.md]
+
+  - id: cognito-003
+    domain: 2
+    task: "2.1"
+    difficulty: 2
+    question: |
+      A company is moving 2 million users from a legacy user database to a Cognito user pool. Users must keep
+      their current passwords and not notice the migration. Which approach should the developer use?
+    options:
+      A: "A user migration Lambda trigger that authenticates users against the legacy system at their first sign-in and creates them in the pool."
+      B: "Export the password hashes and import them into the user pool with a CSV file."
+      C: "Force all users to reset their passwords."
+      D: "Create the users with AdminCreateUser and a temporary password emailed to each user."
+    answer: [A]
+    explanation: |
+      The user migration trigger migrates users lazily and transparently, and also works for forgotten
+      password flows.
+      B: CSV imports cannot carry passwords, so users must reset them.
+      C and D are visible to users.
+    refs: [book/src/ch12-cognito.md]
+
+  - id: cognito-004
+    domain: 2
+    task: "2.1"
+    difficulty: 2
+    question: |
+      API Gateway methods are protected by a Cognito user pool authorizer configured with OAuth scopes
+      (orders/read). Requests sent with the user's ID token are rejected. Which token should the client send?
+    options:
+      A: "The ID token, base64-decoded."
+      B: "The refresh token."
+      C: "The access token, which carries the scope claim."
+      D: "The identity pool's IdentityId."
+    answer: [C]
+    explanation: |
+      When scopes are configured on the method, the authorizer expects an access token, whose scope claim is
+      checked.
+      A: ID tokens describe the user and are accepted only when no scopes are required.
+      B is only exchanged for new tokens.
+      D is not a token.
+    refs: [book/src/ch12-cognito.md]
+
+  - id: cognito-005
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      A single-page application calling InitiateAuth fails with "Unable to verify secret hash for client". The
+      app client was created with the default "generate client secret" option. What should the developer do?
+    options:
+      A: "Use an app client without a client secret for the public SPA."
+      B: "Embed the client secret in the JavaScript bundle."
+      C: "Switch the auth flow to ADMIN_USER_PASSWORD_AUTH from the browser."
+      D: "Enable MFA on the user pool."
+    answer: [A]
+    explanation: |
+      Public clients (browsers, mobile apps) cannot keep secrets. Their app clients must not have one.
+      Otherwise every request needs a SECRET_HASH.
+      B leaks the secret.
+      C requires IAM credentials and is server-side only.
+      D is unrelated.
+    refs: [book/src/ch12-cognito.md]
+
+  - id: cognito-006
+    domain: 2
+    task: "2.1"
+    difficulty: 2
+    question: |
+      Visitors of a mobile shopping app must be able to browse product images stored in S3 before signing in,
+      with read-only access. Signed-in users get more permissions. How should this be implemented?
+    options:
+      A: "Make the whole bucket public."
+      B: "Use a Cognito user pool with no password policy."
+      C: "Embed an IAM user's access keys in the app for guests."
+      D: "Enable unauthenticated (guest) identities in a Cognito identity pool with a minimal read-only role, and use an authenticated role for signed-in users."
+    answer: [D]
+    explanation: |
+      Identity pools support guest identities with their own IAM role (keep it minimal) and an authenticated
+      role for signed-in users.
+      A exposes more than intended.
+      B still requires sign-in.
+      C embeds long-term secrets.
+    refs: [book/src/ch12-cognito.md]
+
+  - id: cognito-007
+    domain: 2
+    task: "2.1"
+    difficulty: 1
+    question: |
+      An app wants users to sign in with Google or Apple, or with an email and password, while the backend only
+      deals with one token format. What should the developer configure?
+    options:
+      A: "IAM users for Google users."
+      B: "Separate token validation code for Google, Apple and the internal database in the backend."
+      C: "A Cognito identity pool only."
+      D: "A Cognito user pool with Google and Apple configured as federated identity providers. The pool issues its own tokens for every user."
+    answer: [D]
+    explanation: |
+      User pools federate social and enterprise identity providers and normalize users, so the backend only
+      validates Cognito JWTs.
+      A is wrong.
+      B adds complexity.
+      C gives AWS credentials but no unified user directory or JWTs for your API.
+    refs: [book/src/ch12-cognito.md]
+
+  - id: cognito-008
+    domain: 2
+    task: "2.1"
+    difficulty: 2
+    question: |
+      A legacy web application running on EC2 behind an Application Load Balancer must require users to sign in
+      with the company's Cognito user pool, without changing the application code to handle OAuth. What should be
+      configured?
+    options:
+      A: "An authenticate-cognito action in the ALB listener rule before forwarding to the target group."
+      B: "A Cognito identity pool attached to the target group."
+      C: "A Lambda authorizer on the ALB."
+      D: "Security group rules allowing only authenticated users."
+    answer: [A]
+    explanation: |
+      The ALB can authenticate users with Cognito or any OIDC provider, handle the redirects, and pass user
+      claims to the application in x-amzn-oidc-* headers.
+      B is not an ALB feature.
+      C: Lambda authorizers are an API Gateway feature.
+      D: security groups know nothing about users.
+    refs: [book/src/ch12-cognito.md]
+
+  - id: cognito-009
+    domain: 2
+    task: "2.1"
+    difficulty: 3
+    question: |
+      A backend service receives Cognito user pool access tokens in the Authorization header and validates them
+      itself. Which checks must it perform? (Choose THREE.)
+    options:
+      A: "Check that the exp claim is in the future."
+      B: "Verify the JWT signature with the public keys from the user pool's JWKS endpoint."
+      C: "Check that iss is the user pool URL, token_use is access, and client_id matches the app client."
+      D: "Call AdminGetUser for every request."
+      E: "Check that the token is shorter than 1 KB."
+    answer: [A, B, C]
+    explanation: |
+      A valid token must have a correct signature, must not be expired, and must come from the expected pool,
+      token type and client. Libraries like aws-jwt-verify implement these checks.
+      D is unnecessary and slow.
+      E is meaningless.
+    refs: [book/src/ch12-cognito.md]
+
+  - id: cognito-010
+    domain: 2
+    task: "2.1"
+    difficulty: 2
+    question: |
+      Members of the "admins" group in a Cognito user pool must receive more AWS permissions than regular users
+      when they obtain credentials through the identity pool. How can this be achieved?
+    options:
+      A: "Store admin permissions in a custom attribute and read it in the mobile app."
+      B: "Assign an IAM role to the admins group and configure the identity pool to choose the role from the token (or with rules on cognito:groups)."
+      C: "Create a second identity pool for admins only, with no role mapping."
+      D: "Add the admins' user names to the authenticated role's trust policy."
+    answer: [B]
+    explanation: |
+      Identity pools support role-based access control: role mapping from token claims, such as the group
+      role (cognito:preferred_role) or rules on cognito:groups.
+      A enforces nothing on the AWS side.
+      C is unnecessary.
+      D: trust policies cannot reference user pool user names.
+    refs: [book/src/ch12-cognito.md]
+
+  - id: cognito-011
+    domain: 2
+    task: "2.1"
+    difficulty: 1
+    question: |
+      Users of a mobile app complain that they must sign in again every 30 days. The product owner wants users to
+      stay signed in for 90 days. What should the developer change?
+    options:
+      A: "Set the app client's refresh token validity to 90 days."
+      B: "Disable MFA."
+      C: "Enable advanced security features."
+      D: "Set the ID token validity to 90 days."
+    answer: [A]
+    explanation: |
+      Refresh tokens (30 days by default, configurable from 60 minutes to 10 years) let the app get new ID and
+      access tokens without signing in again.
+      B and C are unrelated.
+      D: ID and access tokens are limited to 24 hours.
+    refs: [book/src/ch12-cognito.md]
+
+  - id: cognito-012
+    domain: 2
+    task: "2.1"
+    difficulty: 2
+    question: |
+      An IAM policy for the authenticated role of a Cognito identity pool must let each user access only their own
+      folder in the bucket user-files. Which Resource ARN should the policy use?
+    options:
+      A: "arn:aws:s3:::user-files/*"
+      B: "arn:aws:s3:::user-files/${cognito:username}/*"
+      C: "arn:aws:s3:::user-files/${aws:username}/*"
+      D: "arn:aws:s3:::user-files/${cognito-identity.amazonaws.com:sub}/*"
+    answer: [D]
+    explanation: |
+      The ${cognito-identity.amazonaws.com:sub} variable resolves to the caller's identity ID.
+      A gives access to every user's files.
+      B is not a valid IAM policy variable.
+      C only works for IAM users.
+    refs: [book/src/ch12-cognito.md]

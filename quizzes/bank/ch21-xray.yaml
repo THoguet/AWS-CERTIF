@@ -1,0 +1,224 @@
+chapter: ch21
+topic: xray
+questions:
+  - id: xray-001
+    domain: 4
+    task: "4.2"
+    difficulty: 2
+    question: |
+      Support engineers need to find all traces of requests made by "gold" tier customers that ended with a fault.
+      The tier is known in the Lambda function's code. How should the developer record it?
+    options:
+      A: "As X-Ray metadata (put_metadata)."
+      B: "As a Lambda environment variable."
+      C: "As an X-Ray annotation (put_annotation(\"customer_tier\", tier)), then search with a filter expression such as annotation.customer_tier = \"gold\" AND fault."
+      D: "In a log line only."
+    answer: [C]
+    explanation: |
+      Annotations are indexed key-value pairs (string, number, boolean) usable in filter expressions and groups
+      (exercise xray_1).
+      A: metadata is not indexed and cannot be searched.
+      B is static per function.
+      D does not connect to traces.
+    refs: [book/src/ch21-tracing.md]
+
+  - id: xray-002
+    domain: 4
+    task: "4.2"
+    difficulty: 1
+    question: |
+      A developer enabled active tracing on a Lambda function, but no traces appear in X-Ray. What is the MOST
+      likely missing piece?
+    options:
+      A: "The execution role lacks xray:PutTraceSegments and xray:PutTelemetryRecords (for example the AWSXRayDaemonWriteAccess policy)."
+      B: "Tracing requires provisioned concurrency."
+      C: "The function must run in a VPC."
+      D: "The X-Ray daemon must be installed in the deployment package."
+    answer: [A]
+    explanation: |
+      Lambda runs the daemon for you, but it sends segments with the execution role's permissions.
+      B and C are not required.
+      D: the daemon is built into Lambda.
+    refs: [book/src/ch21-tracing.md]
+
+  - id: xray-003
+    domain: 4
+    task: "4.2"
+    difficulty: 2
+    question: |
+      An application on ECS Fargate is instrumented for X-Ray, but no traces arrive. Which configuration is
+      required? (Choose TWO.)
+    options:
+      A: "Open TCP port 443 inbound on the task's security group."
+      B: "Run the X-Ray daemon (or an ADOT collector) as a sidecar container reachable on UDP port 2000."
+      C: "Enable active tracing on the ECS cluster."
+      D: "Grant X-Ray write permissions to the task role."
+      E: "Grant X-Ray write permissions to the task execution role only."
+    answer: [B, D]
+    explanation: |
+      On ECS, the daemon is not built in: it runs as a sidecar, and the application sends segments to it
+      (AWS_XRAY_DAEMON_ADDRESS). The daemon calls X-Ray with the task role's credentials.
+      A: segments go out to X-Ray, no inbound rule is needed.
+      C does not exist.
+      E: the execution role is used to start containers, not by them.
+    refs: [book/src/ch21-tracing.md]
+
+  - id: xray-004
+    domain: 4
+    task: "4.2"
+    difficulty: 2
+    question: |
+      A team keeps the default X-Ray sampling rule. A service receives 200 requests per second. Approximately how
+      many requests per second are traced?
+    options:
+      A: "About 11: the first request each second plus 5% of the remaining 199."
+      B: "All 200."
+      C: "Exactly 1."
+      D: "About 50 (25%)."
+    answer: [A]
+    explanation: |
+      The default rule uses a reservoir of 1 request per second plus a fixed rate of 5% of additional requests:
+      1 + 0.05 × 199 ≈ 11. Custom sampling rules change this without redeploying code.
+    refs: [book/src/ch21-tracing.md]
+
+  - id: xray-005
+    domain: 4
+    task: "4.2"
+    difficulty: 2
+    question: |
+      During an incident, the team wants to trace all requests to the /checkout path for an hour, without
+      redeploying the application. What should they do?
+    options:
+      A: "Create a custom sampling rule in X-Ray matching URL path /checkout with a high fixed rate and a higher priority than the default rule."
+      B: "Add more annotations."
+      C: "Change the sampling rate in the code and redeploy."
+      D: "Increase the Lambda memory."
+    answer: [A]
+    explanation: |
+      The SDKs and collectors fetch sampling rules from X-Ray periodically, so rule changes apply without code
+      changes.
+      B and D do not change sampling.
+      C requires a deployment.
+    refs: [book/src/ch21-tracing.md]
+
+  - id: xray-006
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      Traces show a Lambda function's total duration, but none of its calls to DynamoDB and to an external HTTP API
+      appear as subsegments. What is missing?
+    options:
+      A: "A larger sampling rate."
+      B: "X-Ray tracing on the DynamoDB table."
+      C: "Instrumentation of the libraries: patch boto3 and requests with the X-Ray SDK (patch_all) or use OpenTelemetry auto-instrumentation."
+      D: "A VPC endpoint for X-Ray."
+    answer: [C]
+    explanation: |
+      Active tracing records the function segment. Downstream calls appear as subsegments only when the
+      clients are instrumented.
+      A records more traces, not more detail.
+      B: DynamoDB has no tracing setting.
+      D is not required.
+    refs: [book/src/ch21-tracing.md]
+
+  - id: xray-007
+    domain: 4
+    task: "4.1"
+    difficulty: 1
+    question: |
+      Users report that the checkout flow is slow. It involves API Gateway, four Lambda functions, DynamoDB and a
+      third-party payment API. Which tool shows quickly which component adds the most latency?
+    options:
+      A: "VPC Flow Logs."
+      B: "CloudTrail event history."
+      C: "The X-Ray trace map and trace timelines."
+      D: "AWS Config."
+    answer: [C]
+    explanation: |
+      Traces show the latency of each segment and subsegment, and the trace map highlights slow or failing
+      services.
+      A records network flows without application timing.
+      B records API calls for auditing.
+      D tracks resource configuration.
+    refs: [book/src/ch21-tracing.md]
+
+  - id: xray-008
+    domain: 4
+    task: "4.2"
+    difficulty: 2
+    question: |
+      In February 2026, the X-Ray SDKs and daemon entered maintenance mode. A team is starting new instrumentation
+      for services that send traces to X-Ray. What does AWS recommend?
+    options:
+      A: "Keep writing new code with the X-Ray SDK, which receives new features."
+      B: "Instrument with OpenTelemetry, for example the AWS Distro for OpenTelemetry (ADOT), which exports to X-Ray."
+      C: "Stop using X-Ray, since the service is being shut down."
+      D: "Send traces as CloudTrail events."
+    answer: [B]
+    explanation: |
+      The X-Ray SDKs and daemon receive only security fixes until their end of support in February 2027. The
+      X-Ray service continues and accepts OpenTelemetry data.
+      A and C are false.
+      D is unrelated.
+    refs: [book/src/ch21-tracing.md]
+
+  - id: xray-009
+    domain: 4
+    task: "4.1"
+    difficulty: 3
+    question: |
+      A service calls another internal service with a custom HTTP client. In X-Ray, the two services appear as two
+      separate traces instead of one. What is the cause?
+    options:
+      A: "The X-Amzn-Trace-Id header is not propagated by the custom client, so the downstream service starts a new trace."
+      B: "The services are in different Availability Zones."
+      C: "Annotations were used instead of metadata."
+      D: "Both services use the same sampling rule."
+    answer: [A]
+    explanation: |
+      Traces are joined through the trace header, which carries the root trace ID, the parent segment and the
+      sampling decision. Instrumented clients add it automatically, and custom clients must forward it.
+      B, C and D are unrelated.
+    refs: [book/src/ch21-tracing.md]
+
+  - id: xray-010
+    domain: 4
+    task: "4.2"
+    difficulty: 2
+    question: |
+      A developer wants to attach the full JSON response of a partner API to the corresponding subsegment for
+      debugging. Nobody will search traces by this data. How should it be recorded?
+    options:
+      A: "In the trace header."
+      B: "As metadata on the subsegment."
+      C: "As an annotation for each field of the response."
+      D: "As a custom CloudWatch metric."
+    answer: [B]
+    explanation: |
+      Metadata accepts any JSON value and is not indexed, which suits debugging details.
+      A is propagated to every downstream service and is not meant for data.
+      C: annotations are limited in number and only accept simple types.
+      D is for numeric time series.
+    refs: [book/src/ch21-tracing.md]
+
+  - id: xray-011
+    domain: 4
+    task: "4.2"
+    difficulty: 2
+    question: |
+      A team runs a web application on Elastic Beanstalk and wants it to send traces to X-Ray with the LEAST
+      effort. What should they do?
+    options:
+      A: "Enable the X-Ray daemon with the XRayEnabled option (aws:elasticbeanstalk:xray namespace), instrument the code, and allow X-Ray writes in the instance profile."
+      B: "Enable X-Ray on the load balancer only."
+      C: "Enable CloudTrail data events."
+      D: "Install the daemon manually on each instance through SSH."
+    answer: [A]
+    explanation: |
+      Beanstalk can run the daemon on its instances through a configuration option. The application still
+      needs instrumentation, and the instance profile needs permissions.
+      B does not trace the application.
+      C is unrelated.
+      D is lost when instances are replaced.
+    refs: [book/src/ch21-tracing.md, book/src/ch18-beanstalk-containers.md]

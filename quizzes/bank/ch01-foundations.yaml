@@ -10,17 +10,17 @@ questions:
       Since then, its calls to Amazon DynamoDB time out. The subnets have no route to the internet.
       Which solution restores access to DynamoDB at the LOWEST cost?
     options:
-      A: "Create a gateway VPC endpoint for DynamoDB and associate it with the private subnets' route tables."
-      B: "Move the function to public subnets and enable auto-assign public IP."
-      C: "Create a NAT gateway in a public subnet and route the private subnets' internet traffic through it."
-      D: "Add an inbound rule allowing HTTPS from 0.0.0.0/0 to the function's security group."
-    answer: [A]
+      A: "Move the function to public subnets and enable auto-assign public IP."
+      B: "Create a NAT gateway in a public subnet and route the private subnets' internet traffic through it."
+      C: "Add an inbound rule allowing HTTPS from 0.0.0.0/0 to the function's security group."
+      D: "Create a gateway VPC endpoint for DynamoDB and associate it with the private subnets' route tables."
+    answer: [D]
     explanation: |
       A gateway VPC endpoint (available for S3 and DynamoDB) adds a route to the service inside the VPC.
       It is free and keeps traffic private.
-      B is wrong: Lambda ENIs never get public IPs, so a public subnet gives no internet access.
-      C works but a NAT gateway costs money per hour and per GB.
-      D is irrelevant: the problem is outbound routing, not inbound security group rules.
+      A is wrong: Lambda ENIs never get public IPs, so a public subnet gives no internet access.
+      B works but a NAT gateway costs money per hour and per GB.
+      C is irrelevant: the problem is outbound routing, not inbound security group rules.
     refs: [book/src/ch01-aws-foundations.md]
 
   - id: foundations-002
@@ -32,17 +32,17 @@ questions:
       show the same private IP address for every request instead of the visitors' IP addresses.
       How can the developer obtain the client IP address?
     options:
-      A: "Read the X-Forwarded-For header of the incoming requests."
-      B: "Enable VPC Flow Logs and correlate them with the application logs."
-      C: "Replace the ALB with a Network Load Balancer configured with sticky sessions."
-      D: "Enable access logs on the EC2 instances' security group."
-    answer: [A]
+      A: "Enable VPC Flow Logs and correlate them with the application logs."
+      B: "Read the X-Forwarded-For header of the incoming requests."
+      C: "Enable access logs on the EC2 instances' security group."
+      D: "Replace the ALB with a Network Load Balancer configured with sticky sessions."
+    answer: [B]
     explanation: |
       The ALB terminates the connection and passes the original client IP in the X-Forwarded-For header.
-      B: flow logs show network metadata, and correlating them with requests is unreliable and overkill.
-      C: an NLB does preserve the source IP, but replacing the load balancer is unnecessary, and sticky sessions
+      A: flow logs show network metadata, and correlating them with requests is unreliable and overkill.
+      C: security groups do not have access logs.
+      D: an NLB does preserve the source IP, but replacing the load balancer is unnecessary, and sticky sessions
       are unrelated.
-      D: security groups do not have access logs.
     refs: [book/src/ch01-aws-foundations.md]
 
   - id: foundations-003
@@ -55,8 +55,8 @@ questions:
       steal these credentials. What should the developer do?
     options:
       A: "Require IMDSv2 on the instances so that metadata requests need a session token."
-      B: "Store the role's access keys in an encrypted file on the instance instead of using IMDS."
-      C: "Disable the instance profile and pass credentials through EC2 user data."
+      B: "Disable the instance profile and pass credentials through EC2 user data."
+      C: "Store the role's access keys in an encrypted file on the instance instead of using IMDS."
       D: "Block port 80 outbound in the instance's security group."
     answer: [A]
     explanation: |
@@ -76,17 +76,17 @@ questions:
       A PostgreSQL RDS instance must only accept connections from the EC2 instances of an Auto Scaling group,
       whose IP addresses change constantly. What is the MOST maintainable way to configure network access?
     options:
-      A: "Add an inbound rule on the database security group allowing port 5432 from the security group of the application instances."
-      B: "Add a network ACL rule allowing port 5432 from the CIDR block of the whole VPC."
+      A: "Make the database publicly accessible and require SSL connections."
+      B: "Add an inbound rule on the database security group allowing port 5432 from the security group of the application instances."
       C: "Use a Lambda function triggered by Auto Scaling events to add each new instance IP to the database security group."
-      D: "Make the database publicly accessible and require SSL connections."
-    answer: [A]
+      D: "Add a network ACL rule allowing port 5432 from the CIDR block of the whole VPC."
+    answer: [B]
     explanation: |
       A security group rule can reference another security group as its source. Any instance in the app
       security group is allowed, whatever its IP.
-      B is too broad (the whole VPC), and NACLs are stateless and harder to manage.
+      A exposes the database publicly.
       C works but adds custom code to maintain.
-      D exposes the database publicly.
+      D is too broad (the whole VPC), and NACLs are stateless and harder to manage.
     refs: [book/src/ch01-aws-foundations.md]
 
   - id: foundations-005
@@ -97,17 +97,17 @@ questions:
       A company wants its apex domain example.com, hosted in Route 53, to point to an Application Load Balancer.
       Which record should the developer create?
     options:
-      A: "A Route 53 alias record for example.com targeting the load balancer."
-      B: "A CNAME record for example.com pointing to the load balancer DNS name."
-      C: "An A record with the current IP addresses of the load balancer."
-      D: "An MX record pointing to the load balancer."
-    answer: [A]
+      A: "An A record with the current IP addresses of the load balancer."
+      B: "An MX record pointing to the load balancer."
+      C: "A Route 53 alias record for example.com targeting the load balancer."
+      D: "A CNAME record for example.com pointing to the load balancer DNS name."
+    answer: [C]
     explanation: |
       Alias records work at the zone apex, follow the AWS resource automatically, and queries to AWS
       resources are free.
-      B: CNAMEs are not allowed at the zone apex.
-      C: ALB IP addresses change over time.
-      D: MX records are for mail.
+      A: ALB IP addresses change over time.
+      B: MX records are for mail.
+      D: CNAMEs are not allowed at the zone apex.
     refs: [book/src/ch01-aws-foundations.md]
 
   - id: foundations-006
@@ -119,15 +119,15 @@ questions:
       queue that the developer can see in the console in eu-west-1. The script runs on a laptop where the
       default profile has region = us-east-1. What is the MOST likely fix?
     options:
-      A: "Create the SQS client with region_name='eu-west-1' (or set the profile's region accordingly)."
-      B: "Add sqs:SendMessage to the developer's IAM policy."
+      A: "Recreate the queue as a FIFO queue."
+      B: "Create the SQS client with region_name='eu-west-1' (or set the profile's region accordingly)."
       C: "Enable long polling on the queue."
-      D: "Recreate the queue as a FIFO queue."
-    answer: [A]
+      D: "Add sqs:SendMessage to the developer's IAM policy."
+    answer: [B]
     explanation: |
       SQS queues are regional. A client configured for us-east-1 cannot find a queue in eu-west-1.
-      B: a permission problem returns AccessDenied, not "does not exist".
-      C and D are unrelated to locating the queue.
+      A and C are unrelated to locating the queue.
+      D: a permission problem returns AccessDenied, not "does not exist".
     refs: [book/src/ch01-aws-foundations.md]
 
   - id: foundations-007
@@ -138,16 +138,16 @@ questions:
       Under the AWS shared responsibility model, which tasks are the customer's responsibility for an
       application running on AWS Lambda? (Choose TWO.)
     options:
-      A: "Patching the operating system of the execution environment."
+      A: "Updating the managed runtime with security patches."
       B: "Writing secure function code and managing its dependencies."
-      C: "Configuring least-privilege permissions on the function's execution role."
-      D: "Maintaining the physical security of the data centers."
-      E: "Updating the managed runtime with security patches."
-    answer: [B, C]
+      C: "Maintaining the physical security of the data centers."
+      D: "Patching the operating system of the execution environment."
+      E: "Configuring least-privilege permissions on the function's execution role."
+    answer: [B, E]
     explanation: |
       With Lambda, AWS manages the infrastructure, operating system and managed runtime patching. The
       customer remains responsible for code, dependencies, data and IAM configuration.
-      A, D and E are handled by AWS.
+      A, C and D are handled by AWS.
     refs: [book/src/ch01-aws-foundations.md]
 
   - id: foundations-008
@@ -158,15 +158,15 @@ questions:
       A policy must allow queries on all secondary indexes of the DynamoDB table Orders in account
       123456789012, Region eu-west-3. Which resource ARN matches the indexes?
     options:
-      A: "arn:aws:dynamodb:eu-west-3:123456789012:table/Orders/index/*"
-      B: "arn:aws:dynamodb:::table/Orders/*"
+      A: "arn:aws:dynamodb:eu-west-3:123456789012:Orders:indexes"
+      B: "arn:aws:dynamodb:eu-west-3:123456789012:table/Orders/index/*"
       C: "arn:aws:dynamodb:eu-west-3:123456789012:index/Orders/*"
-      D: "arn:aws:dynamodb:eu-west-3:123456789012:Orders:indexes"
-    answer: [A]
+      D: "arn:aws:dynamodb:::table/Orders/*"
+    answer: [B]
     explanation: |
       DynamoDB index ARNs are the table ARN followed by /index/<name>, so /index/* covers all indexes.
-      B omits the Region and account, which DynamoDB ARNs require.
-      C and D use formats that do not exist.
+      A and C use formats that do not exist.
+      D omits the Region and account, which DynamoDB ARNs require.
     refs: [book/src/ch01-aws-foundations.md, book/src/ch02-iam.md]
 
   - id: foundations-009
@@ -178,18 +178,18 @@ questions:
       "Rate exceeded" / ThrottlingException errors, while most calls succeed. Which actions should the
       developer take? (Choose TWO.)
     options:
-      A: "Retry throttled calls with exponential backoff and jitter."
-      B: "Request a service quota increase if the sustained request rate legitimately exceeds the quota."
-      C: "Retry throttled calls immediately in a tight loop until they succeed."
-      D: "Grant the application administrator permissions."
-      E: "Switch to a different AWS Region for each retry."
-    answer: [A, B]
+      A: "Retry throttled calls immediately in a tight loop until they succeed."
+      B: "Grant the application administrator permissions."
+      C: "Retry throttled calls with exponential backoff and jitter."
+      D: "Switch to a different AWS Region for each retry."
+      E: "Request a service quota increase if the sustained request rate legitimately exceeds the quota."
+    answer: [C, E]
     explanation: |
       Throttling is transient: back off with jitter (SDK retry modes do it). If the steady load really
       exceeds the quota, request an increase.
-      C makes the overload worse.
-      D: throttling is not a permission issue.
-      E is not a sensible design and breaks data locality.
+      A makes the overload worse.
+      B: throttling is not a permission issue.
+      D is not a sensible design and breaks data locality.
     refs: [book/src/ch01-aws-foundations.md, book/src/ch03-cli-sdk-sts.md]
 
   - id: foundations-010
@@ -201,15 +201,15 @@ questions:
       instance, the ALB marks the target unhealthy, but the instance is never replaced and capacity stays
       reduced. What should the developer change?
     options:
-      A: "Configure the Auto Scaling group to use ELB health checks in addition to EC2 status checks."
-      B: "Increase the ALB deregistration delay."
+      A: "Increase the ALB deregistration delay."
+      B: "Enable sticky sessions on the target group."
       C: "Enable detailed monitoring on the instances."
-      D: "Enable sticky sessions on the target group."
-    answer: [A]
+      D: "Configure the Auto Scaling group to use ELB health checks in addition to EC2 status checks."
+    answer: [D]
     explanation: |
       By default an ASG only uses EC2 status checks, which pass while the OS runs. With the ELB health check
       type, the ASG replaces instances that the load balancer reports unhealthy.
-      B only changes connection draining.
+      A only changes connection draining.
+      B pins clients to targets.
       C changes metric granularity.
-      D pins clients to targets.
     refs: [book/src/ch01-aws-foundations.md]

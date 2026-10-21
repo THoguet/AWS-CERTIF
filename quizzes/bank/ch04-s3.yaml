@@ -9,17 +9,17 @@ questions:
       A mobile app lets users upload profile pictures to a private S3 bucket. The backend must not handle the
       image bytes, and users must not receive AWS credentials. Which solution should the developer use?
     options:
-      A: "The backend generates an S3 presigned URL (or presigned POST) for the target key and returns it to the app."
-      B: "Make the bucket public-write and validate uploads afterwards."
-      C: "Embed an IAM user's access keys in the mobile app."
-      D: "Stream the image through API Gateway and Lambda into S3."
-    answer: [A]
+      A: "Stream the image through API Gateway and Lambda into S3."
+      B: "Embed an IAM user's access keys in the mobile app."
+      C: "Make the bucket public-write and validate uploads afterwards."
+      D: "The backend generates an S3 presigned URL (or presigned POST) for the target key and returns it to the app."
+    answer: [D]
     explanation: |
       A presigned URL grants a single operation on one key for a limited time, using the backend's
       permissions. The app uploads directly to S3.
-      B is insecure.
-      C exposes long-term credentials.
-      D routes the bytes through the backend, and API Gateway has a 10 MB payload limit.
+      A routes the bytes through the backend, and API Gateway has a 10 MB payload limit.
+      B exposes long-term credentials.
+      C is insecure.
     refs: [book/src/ch04-s3.md]
 
   - id: s3-002
@@ -30,16 +30,16 @@ questions:
       A Lambda function generates S3 presigned download URLs with ExpiresIn set to 24 hours. Users report that
       the links stop working after a few hours. What is the cause?
     options:
-      A: "The URLs were signed with the function's temporary role credentials, which expire before 24 hours."
-      B: "Presigned URLs can never be valid for more than 1 hour."
-      C: "The bucket has versioning enabled."
-      D: "CloudFront caches the URLs."
-    answer: [A]
+      A: "The bucket has versioning enabled."
+      B: "CloudFront caches the URLs."
+      C: "The URLs were signed with the function's temporary role credentials, which expire before 24 hours."
+      D: "Presigned URLs can never be valid for more than 1 hour."
+    answer: [C]
     explanation: |
       A presigned URL stops working when it expires OR when the credentials that signed it expire, whichever
       comes first. Lambda role credentials are short-lived. Sign with longer-lived credentials or use shorter expirations.
-      B is false (up to 7 days with IAM user credentials).
-      C and D are unrelated.
+      A and B are unrelated.
+      D is false (up to 7 days with IAM user credentials).
     refs: [book/src/ch04-s3.md]
 
   - id: s3-003
@@ -50,17 +50,17 @@ questions:
       Users upload 3 GB video files over unreliable connections, and failed uploads must restart from scratch.
       Which S3 feature improves reliability and speed?
     options:
-      A: "Multipart upload, which uploads parts in parallel and retries only the failed parts."
+      A: "Versioning."
       B: "S3 Object Lock."
-      C: "S3 Select."
-      D: "Versioning."
-    answer: [A]
+      C: "Multipart upload, which uploads parts in parallel and retries only the failed parts."
+      D: "S3 Select."
+    answer: [C]
     explanation: |
       With multipart upload, each part (5 MB–5 GB) uploads independently and in parallel, so a failure only
       retries that part. It is recommended above about 100 MB.
+      A keeps versions but does not help uploads.
       B is about immutability.
-      C queried object contents.
-      D keeps versions but does not help uploads.
+      D queried object contents.
     refs: [book/src/ch04-s3.md]
 
   - id: s3-004
@@ -70,17 +70,17 @@ questions:
     question: |
       A PutObject call uploading a 7 GB database dump fails with EntityTooLarge. What should the developer do?
     options:
-      A: "Use multipart upload, which is required for objects larger than 5 GB."
-      B: "Compress the file with gzip and retry the single PUT."
-      C: "Enable Transfer Acceleration."
-      D: "Request a quota increase for the maximum object size."
-    answer: [A]
+      A: "Compress the file with gzip and retry the single PUT."
+      B: "Request a quota increase for the maximum object size."
+      C: "Use multipart upload, which is required for objects larger than 5 GB."
+      D: "Enable Transfer Acceleration."
+    answer: [C]
     explanation: |
       A single PUT is limited to 5 GB, and larger objects (up to 5 TB) must use multipart upload. Managed
       transfers (upload_file) do it automatically.
-      B might happen to work for this file, but it does not fix the limit.
-      C does not change limits.
-      D: the limit is fixed.
+      A might happen to work for this file, but it does not fix the limit.
+      B: the limit is fixed.
+      D does not change limits.
     refs: [book/src/ch04-s3.md]
 
   - id: s3-005
@@ -91,16 +91,16 @@ questions:
       Monthly billing reports are downloaded about once a month, but when someone requests one it must be
       available within milliseconds. The company wants to minimize storage cost. Which storage class fits BEST?
     options:
-      A: "S3 Standard-Infrequent Access"
+      A: "S3 Glacier Deep Archive"
       B: "S3 Standard"
       C: "S3 Glacier Flexible Retrieval"
-      D: "S3 Glacier Deep Archive"
-    answer: [A]
+      D: "S3 Standard-Infrequent Access"
+    answer: [D]
     explanation: |
       Standard-IA stores infrequently accessed data at a lower price, with millisecond access (plus a
       retrieval fee and a 30-day minimum).
+      A and C need a restore that takes minutes to hours.
       B costs more for rarely accessed data.
-      C and D need a restore that takes minutes to hours.
     refs: [book/src/ch04-s3.md]
 
   - id: s3-006
@@ -114,15 +114,15 @@ questions:
     options:
       A: "S3 Intelligent-Tiering"
       B: "S3 One Zone-IA"
-      C: "S3 Standard with a lifecycle rule to Glacier after 30 days"
-      D: "S3 Glacier Instant Retrieval"
+      C: "S3 Glacier Instant Retrieval"
+      D: "S3 Standard with a lifecycle rule to Glacier after 30 days"
     answer: [A]
     explanation: |
       Intelligent-Tiering moves objects between access tiers automatically based on access, with a small
       monitoring fee and no retrieval fees.
       B reduces durability (single AZ) and has retrieval fees.
-      C would archive hot data and requires restores.
-      D charges retrieval fees, a poor fit for hot data.
+      C charges retrieval fees, a poor fit for hot data.
+      D would archive hot data and requires restores.
     refs: [book/src/ch04-s3.md]
 
   - id: s3-007
@@ -177,16 +177,16 @@ questions:
       meet this requirement?
     options:
       A: "Configure default bucket encryption with SSE-KMS using that key."
-      B: "Enable versioning."
-      C: "Use client-side encryption in every application."
-      D: "Rely on the default SSE-S3 encryption."
+      B: "Rely on the default SSE-S3 encryption."
+      C: "Enable versioning."
+      D: "Use client-side encryption in every application."
     answer: [A]
     explanation: |
       Default encryption applies SSE-KMS with the chosen key to objects uploaded without encryption headers.
       You can add a bucket policy to deny other keys if needed.
-      B is unrelated.
-      C requires changing every app.
-      D uses S3-managed keys, not the required CMK.
+      B uses S3-managed keys, not the required CMK.
+      C is unrelated.
+      D requires changing every app.
     refs: [book/src/ch04-s3.md, book/src/ch13-kms-encryption.md]
 
   - id: s3-010
@@ -197,15 +197,15 @@ questions:
       An ingestion service writes thousands of small objects per second to an SSE-KMS encrypted bucket and
       starts getting throttling errors from KMS. Which change reduces KMS requests the MOST?
     options:
-      A: "Enable S3 Bucket Keys for SSE-KMS on the bucket."
-      B: "Switch the objects to S3 One Zone-IA."
-      C: "Enable S3 Transfer Acceleration."
+      A: "Enable S3 Transfer Acceleration."
+      B: "Enable S3 Bucket Keys for SSE-KMS on the bucket."
+      C: "Switch the objects to S3 One Zone-IA."
       D: "Use more prefixes in the object keys."
-    answer: [A]
+    answer: [B]
     explanation: |
       S3 Bucket Keys generate a bucket-level key from KMS and use it to derive object data keys, cutting KMS
       calls by up to 99%.
-      B and C do not affect KMS.
+      A and C do not affect KMS.
       D spreads S3 request load but not KMS calls.
     refs: [book/src/ch04-s3.md]
 
@@ -217,15 +217,15 @@ questions:
       A company must use its own encryption keys for data stored in S3. The keys must never be stored by AWS,
       and the company accepts sending the key with every request. Which option meets the requirement?
     options:
-      A: "SSE-C"
-      B: "SSE-S3"
+      A: "SSE-S3"
+      B: "SSE-KMS with a customer managed key"
       C: "SSE-KMS with an AWS managed key"
-      D: "SSE-KMS with a customer managed key"
-    answer: [A]
+      D: "SSE-C"
+    answer: [D]
     explanation: |
       With SSE-C the customer provides the key in each request (over HTTPS). S3 uses it to encrypt or decrypt
       and does not store it.
-      B, C and D use keys stored and managed by AWS (in S3 or KMS).
+      A, B and C use keys stored and managed by AWS (in S3 or KMS).
     refs: [book/src/ch04-s3.md]
 
   - id: s3-012
@@ -237,17 +237,17 @@ questions:
       thumbnails, content moderation and indexing. Each service must be able to retry independently. Which
       design should the developer use?
     options:
-      A: "Send the S3 event notification to an SNS topic that fans out to one SQS queue per service (or route the event with EventBridge rules)."
-      B: "Configure three separate S3 event notifications with the same prefix, one to each service's queue."
-      C: "Have the thumbnail function call the other two services synchronously."
-      D: "Poll the bucket every minute from each service."
-    answer: [A]
+      A: "Poll the bucket every minute from each service."
+      B: "Send the S3 event notification to an SNS topic that fans out to one SQS queue per service (or route the event with EventBridge rules)."
+      C: "Configure three separate S3 event notifications with the same prefix, one to each service's queue."
+      D: "Have the thumbnail function call the other two services synchronously."
+    answer: [B]
     explanation: |
       Fan-out through SNS → SQS (or EventBridge with several targets) gives each consumer its own durable copy
       and retry policy.
-      B: S3 does not allow overlapping prefix/suffix filters for the same event type on several destinations.
-      C couples the services tightly.
-      D is inefficient and slow.
+      A is inefficient and slow.
+      C: S3 does not allow overlapping prefix/suffix filters for the same event type on several destinations.
+      D couples the services tightly.
     refs: [book/src/ch04-s3.md, book/src/ch09-messaging.md]
 
   - id: s3-013
@@ -258,16 +258,16 @@ questions:
       A Lambda function triggered by ObjectCreated events on a bucket writes a resized copy of each image back
       to the same bucket. Shortly after deployment, invocations and costs explode. What is the BEST fix?
     options:
-      A: "Write the resized images to a different bucket (or restrict the trigger to a prefix the function never writes to)."
+      A: "Enable versioning on the bucket."
       B: "Increase the function's memory."
       C: "Set the function's reserved concurrency to 1000."
-      D: "Enable versioning on the bucket."
-    answer: [A]
+      D: "Write the resized images to a different bucket (or restrict the trigger to a prefix the function never writes to)."
+    answer: [D]
     explanation: |
       Each output object triggers the function again, which creates a recursive loop. Separate input and
       output locations, and keep a guard in code.
+      A adds versions and makes it worse.
       B and C make the loop faster or bigger.
-      D adds versions and makes it worse.
     refs: [book/src/ch04-s3.md]
 
   - id: s3-014
@@ -278,17 +278,17 @@ questions:
       A function processing S3 events fails with NoSuchKey for objects named like "my report (1).pdf", while
       other objects work. What should the developer change?
     options:
-      A: "URL-decode the object key from the event (for example with urllib.parse.unquote_plus) before calling GetObject."
-      B: "Grant s3:GetObjectVersion to the function."
-      C: "Enable S3 Transfer Acceleration."
-      D: "Wait for eventual consistency before reading the object."
-    answer: [A]
+      A: "Enable S3 Transfer Acceleration."
+      B: "Wait for eventual consistency before reading the object."
+      C: "Grant s3:GetObjectVersion to the function."
+      D: "URL-decode the object key from the event (for example with urllib.parse.unquote_plus) before calling GetObject."
+    answer: [D]
     explanation: |
       Keys in S3 event notifications are URL-encoded (spaces become +, parentheses become %28 and %29). Using
       the raw key requests an object that does not exist.
-      B: versions are not involved.
-      C is unrelated.
-      D: S3 offers strong read-after-write consistency.
+      A is unrelated.
+      B: S3 offers strong read-after-write consistency.
+      C: versions are not involved.
     refs: [book/src/ch04-s3.md]
 
   - id: s3-015
@@ -299,16 +299,16 @@ questions:
       A company configures cross-Region replication from an existing bucket that already holds 2 TB of
       objects. Which statements are true? (Choose TWO.)
     options:
-      A: "Versioning must be enabled on both the source and destination buckets."
-      B: "Objects that existed before the replication rule are not replicated automatically. S3 Batch Replication can copy them."
-      C: "Delete markers are always replicated by default."
-      D: "Replication works only between buckets in the same account."
-      E: "Replication requires the destination bucket to use the same storage class."
-    answer: [A, B]
+      A: "Delete markers are always replicated by default."
+      B: "Versioning must be enabled on both the source and destination buckets."
+      C: "Replication works only between buckets in the same account."
+      D: "Replication requires the destination bucket to use the same storage class."
+      E: "Objects that existed before the replication rule are not replicated automatically. S3 Batch Replication can copy them."
+    answer: [B, E]
     explanation: |
       CRR/SRR require versioning on both buckets and an IAM role. Only new objects are replicated, and
       existing ones need Batch Replication.
-      C: delete marker replication is optional (disabled by default).
-      D: cross-account replication is supported.
-      E: you can choose a different storage class for replicas.
+      A: delete marker replication is optional (disabled by default).
+      C: cross-account replication is supported.
+      D: you can choose a different storage class for replicas.
     refs: [book/src/ch04-s3.md]
