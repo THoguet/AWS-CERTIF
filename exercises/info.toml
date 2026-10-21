@@ -297,3 +297,533 @@ hint = '''
 Strip the "Bearer " prefix. Unknown token → raise Exception("Unauthorized") (API Gateway answers 401). Revoked token → Deny policy (403).
 methodArn = arn:aws:execute-api:region:account:api-id/stage/METHOD/path. Keep the first two path parts and append "/*/*".
 The policy document has Version, and a Statement with Action "execute-api:Invoke", Effect and Resource.'''
+
+[[exercises]]
+name = "ddb_1"
+path = "exercises/06_dynamodb/ddb_1_capacity_math.py"
+chapter = "ch07"
+domain = "1.3"
+hint = '''
+Reads: round the item size UP to the next 4 KB → units per read. Strong = units × reads. Eventual = half (round up). Transactional = double.
+Writes: round the item size UP to the next 1 KB → units per write. Transactional writes cost double.
+Use math.ceil everywhere. A 4.1 KB item costs 2 read units, not 1.025.'''
+
+[[exercises]]
+name = "ddb_2"
+path = "exercises/06_dynamodb/ddb_2_crud.py"
+chapter = "ch07"
+domain = "1.3"
+hint = '''
+create_table needs AttributeDefinitions for the KEY attributes only, KeySchema (HASH, then RANGE) and BillingMode="PAY_PER_REQUEST".
+"status" is a DynamoDB reserved word: use ExpressionAttributeNames={"#s": "status"} and write "SET #s = :s" in the UpdateExpression.
+update_item(..., ReturnValues="ALL_NEW") returns the item after the update. delete_item(..., ReturnValues="ALL_OLD") returns the deleted item.'''
+
+[[exercises]]
+name = "ddb_3"
+path = "exercises/06_dynamodb/ddb_3_query_pagination.py"
+chapter = "ch07"
+domain = "1.3"
+hint = '''
+from boto3.dynamodb.conditions import Key. Use KeyConditionExpression=Key("customer_id").eq(c) & Key("order_date").gte(since).
+Loop while the response has "LastEvaluatedKey" and pass it back as ExclusiveStartKey.
+Pass Limit=page_size to force small pages (the 1 MB page limit does the same in real life).'''
+
+[[exercises]]
+name = "ddb_4"
+path = "exercises/06_dynamodb/ddb_4_gsi.py"
+chapter = "ch07"
+domain = "1.3"
+hint = '''
+GlobalSecondaryIndexes=[{"IndexName": INDEX, "KeySchema": [{"AttributeName": "status", "KeyType": "HASH"}, {"AttributeName": "created_at", "KeyType": "RANGE"}], "Projection": {...}}].
+Projection {"ProjectionType": "INCLUDE", "NonKeyAttributes": ["title"]}. Every attribute used in a key must appear in AttributeDefinitions.
+table.query(IndexName=INDEX, KeyConditionExpression=Key("status").eq("OPEN") & Key("created_at").gte(since)). GSIs do NOT support ConsistentRead=True.'''
+
+[[exercises]]
+name = "ddb_5"
+path = "exercises/06_dynamodb/ddb_5_optimistic_locking.py"
+chapter = "ch07"
+domain = "1.3"
+hint = '''
+When expected == 0 the item must not exist yet: ConditionExpression "attribute_not_exists(pk)".
+Otherwise the stored version must equal the one you read: "version = :expected", with ExpressionAttributeValues={":expected": expected}.
+Write the item with version = expected + 1. Translate ConditionalCheckFailedException into ConflictError.'''
+
+[[exercises]]
+name = "ddb_6"
+path = "exercises/06_dynamodb/ddb_6_counters_ttl.py"
+chapter = "ch07"
+domain = "1.3"
+hint = '''
+UpdateExpression "ADD view_count :one" with ExpressionAttributeValues {":one": 1} and ReturnValues="UPDATED_NEW". ADD starts from 0 when the attribute is missing.
+DynamoDB TTL expects a Number holding an epoch time in SECONDS (not milliseconds, not an ISO string).
+client.update_time_to_live(TableName=..., TimeToLiveSpecification={"Enabled": True, "AttributeName": "expires_at"}).'''
+
+[[exercises]]
+name = "ddb_7"
+path = "exercises/06_dynamodb/ddb_7_batch_writes.py"
+chapter = "ch07"
+domain = "1.3"
+hint = '''
+BatchWriteItem accepts at most 25 put/delete requests per call: RequestItems={table: [{"PutRequest": {"Item": item}}, ...]}.
+The response may contain "UnprocessedItems" (throttling). Resend exactly those, after sleeping with exponential backoff.
+Retry delay before retry n (n = 0, 1, 2...): BASE_DELAY * 2 ** n. Raise RuntimeError if items are still unprocessed after max_retries retries.'''
+
+[[exercises]]
+name = "ddb_8"
+path = "exercises/06_dynamodb/ddb_8_transactions.py"
+chapter = "ch07"
+domain = "1.3"
+hint = '''
+client.transact_write_items(TransactItems=[{"Update": {...}}, {"Update": {...}}, {"Put": {...}}]). All items succeed or none do.
+The debit Update needs ConditionExpression "balance >= :amount". The ledger Put uses "attribute_not_exists(pk)" so a transfer id can only be used once.
+On failure you get TransactionCanceledException. error.response["CancellationReasons"][0]["Code"] == "ConditionalCheckFailed" means the debit failed.'''
+
+[[exercises]]
+name = "ddb_9"
+path = "exercises/06_dynamodb/ddb_9_streams_handler.py"
+chapter = "ch07"
+domain = "1.2"
+hint = '''
+`TypeDeserializer().deserialize(v)` turns {"S": "x"} into "x" and {"N": "1"} into Decimal("1"). Apply it to every attribute of an image.
+record["eventName"] is INSERT, MODIFY or REMOVE. The images are under record["dynamodb"]["NewImage"] and ["OldImage"].
+For MODIFY, compare old["email"] with new["email"]. OldImage only exists with the NEW_AND_OLD_IMAGES (or OLD_IMAGE) view type.'''
+
+[[exercises]]
+name = "cache_1"
+path = "exercises/07_caching/cache_1_lazy_loading.py"
+chapter = "ch08"
+domain = "1.3"
+hint = '''
+Cache-aside: value = cache.get(key). On a miss (None): value = db.load(id), then cache.set(key, value, ttl), then return value.
+Do not cache None. Otherwise a product created a second later stays "missing" until the TTL expires.
+Use a namespaced key such as f"product:{product_id}".'''
+
+[[exercises]]
+name = "cache_2"
+path = "exercises/07_caching/cache_2_write_through.py"
+chapter = "ch08"
+domain = "1.3"
+hint = '''
+Write-through: db.save(product) first. If it succeeds, cache.set(key, product, ttl).
+Invalidate-on-write: db.save(product), then cache.delete(key). The next read repopulates the cache.
+Write the database FIRST. If you updated the cache first and the DB write failed, the cache would serve data that does not exist.'''
+
+[[exercises]]
+name = "cache_3"
+path = "exercises/07_caching/cache_3_cloudfront_signed_url.py"
+chapter = "ch08"
+domain = "2.1"
+hint = '''
+rsa_signer(message) must return private_key.sign(message, padding.PKCS1v15(), hashes.SHA1()). CloudFront signatures use RSA-SHA1.
+Canned policy: signer.generate_presigned_url(url, date_less_than=expires_at).
+Custom policy: policy = signer.build_policy(url, expires_at, ip_address=cidr), then generate_presigned_url(url, policy=policy).'''
+
+[[exercises]]
+name = "sqs_1"
+path = "exercises/08_messaging/sqs_1_basics.py"
+chapter = "ch09"
+domain = "1.1"
+hint = '''
+Queue attributes are strings: {"ReceiveMessageWaitTimeSeconds": "20", "VisibilityTimeout": "120", "MessageRetentionPeriod": "604800"}.
+receive_message(QueueUrl=..., MaxNumberOfMessages=10, WaitTimeSeconds=20) does long polling.
+Delete each message with delete_message(QueueUrl=..., ReceiptHandle=msg["ReceiptHandle"]) ONLY after process() succeeded.'''
+
+[[exercises]]
+name = "sqs_2"
+path = "exercises/08_messaging/sqs_2_dead_letter_queue.py"
+chapter = "ch09"
+domain = "1.1"
+hint = '''
+Create the DLQ first, then read its ARN with get_queue_attributes(AttributeNames=["QueueArn"]).
+The main queue's "RedrivePolicy" attribute is a JSON string: json.dumps({"deadLetterTargetArn": dlq_arn, "maxReceiveCount": "3"}).
+Set the DLQ retention to the 14-day maximum (1209600 s), longer than the source queue's.'''
+
+[[exercises]]
+name = "sqs_3"
+path = "exercises/08_messaging/sqs_3_fifo.py"
+chapter = "ch09"
+domain = "1.1"
+hint = '''
+FIFO queue names must end with ".fifo". Attributes {"FifoQueue": "true", "ContentBasedDeduplication": "true"}.
+Every send to a FIFO queue needs MessageGroupId. Use the customer id so each customer's events stay in order.
+json.dumps(event, sort_keys=True) gives identical bodies for identical events, which content-based deduplication relies on.'''
+
+[[exercises]]
+name = "sqs_4"
+path = "exercises/08_messaging/sqs_4_large_payloads.py"
+chapter = "ch09"
+domain = "1.1"
+hint = '''
+If len(payload) > MAX_INLINE_BYTES: s3.put_object(Bucket=bucket, Key=f"payloads/{uuid.uuid4()}", Body=payload), then send a small JSON pointer.
+Mark pointer messages with a message attribute (e.g. "claim-check" = "true") so the consumer knows to fetch from S3.
+Consumer: receive with MessageAttributeNames=["All"]. If it is a pointer, get_object and read the body. Then delete the message.'''
+
+[[exercises]]
+name = "sns_1"
+path = "exercises/08_messaging/sns_1_fanout_filtering.py"
+chapter = "ch09"
+domain = "4.3"
+hint = '''
+sns.subscribe(TopicArn=..., Protocol="sqs", Endpoint=queue_arn, Attributes={"FilterPolicy": json.dumps({...}), "RawMessageDelivery": "true"}).
+A filter policy is an AND across keys and an OR within a key's list: {"event_type": ["order_placed"], "country": ["FR", "BE"]}.
+publish(TopicArn=..., Message=..., MessageAttributes={"event_type": {"DataType": "String", "StringValue": ...}, ...}).'''
+
+[[exercises]]
+name = "events_1"
+path = "exercises/08_messaging/events_1_event_patterns.py"
+chapter = "ch09"
+domain = "1.1"
+hint = '''
+Patterns match on fields of the event envelope ("source", "detail-type") and inside "detail". Leaf values are always LISTS.
+Prefix: {"key": [{"prefix": "raw/"}]}. Numbers: {"amount": [{"numeric": [">=", 100]}]}. Exclusion: {"country": [{"anything-but": ["test"]}]}.
+put_rule(Name=..., EventBusName=..., EventPattern=json.dumps(pattern)), then put_targets(Rule=..., EventBusName=..., Targets=[{"Id": "1", "Arn": queue_arn}]).'''
+
+[[exercises]]
+name = "kinesis_1"
+path = "exercises/09_streaming/kinesis_1_producer.py"
+chapter = "ch10"
+domain = "1.1"
+hint = '''
+Send in chunks of at most 500 records: put_records(StreamName=..., Records=[{"Data": bytes, "PartitionKey": user_id}, ...]).
+The response has "FailedRecordCount" and a "Records" list in the SAME order as the request. Failed entries have an "ErrorCode".
+Keep only the failed request entries, sleep BASE_DELAY * 2 ** attempt, and resend them. Raise RuntimeError after max_attempts calls.'''
+
+[[exercises]]
+name = "kinesis_2"
+path = "exercises/09_streaming/kinesis_2_consumer.py"
+chapter = "ch10"
+domain = "1.1"
+hint = '''
+describe_stream(StreamName=...)["StreamDescription"]["Shards"] lists the shards. Read each one.
+get_shard_iterator(StreamName=..., ShardId=..., ShardIteratorType="TRIM_HORIZON"), then loop get_records(ShardIterator=it). Stop when a call returns no records.
+Record "Data" is bytes. json.loads accepts bytes directly.'''
+
+[[exercises]]
+name = "kinesis_3"
+path = "exercises/09_streaming/kinesis_3_shard_math.py"
+chapter = "ch10"
+domain = "1.1"
+hint = '''
+Writes per shard: 1 MB/s AND 1,000 records/s. Shards for writes = max(ceil(rps / 1000), ceil(rps * kb / 1024)).
+Shared-throughput reads: 2 MB/s per shard shared by ALL consumers → ceil(rps * kb * consumers / 2048).
+Enhanced fan-out: each consumer gets its own 2 MB/s per shard → ceil(rps * kb / 2048), whatever the number of consumers.'''
+
+[[exercises]]
+name = "sfn_1"
+path = "exercises/09_streaming/sfn_1_retry_catch.py"
+chapter = "ch10"
+domain = "1.1"
+hint = '''
+Retry: [{"ErrorEquals": ["Lambda.ServiceException", "Lambda.TooManyRequestsException", "States.Timeout"], "IntervalSeconds": 2, "MaxAttempts": 3, "BackoffRate": 2.0}].
+Catch: [{"ErrorEquals": ["States.ALL"], "ResultPath": "$.error", "Next": "NotifyFailure"}]. ResultPath keeps the original input and adds the error under $.error.
+Choice: {"Type": "Choice", "Choices": [{"Variable": "$.amount", "NumericGreaterThanEquals": 1000, "Next": "ManualReview"}], "Default": "Ship"}.'''
+
+[[exercises]]
+name = "sfn_2"
+path = "exercises/09_streaming/sfn_2_callback_pattern.py"
+chapter = "ch10"
+domain = "1.1"
+hint = '''
+The resource is "arn:aws:states:::sqs:sendMessage.waitForTaskToken". The token comes from the context object: "task_token.$": "$$.Task.Token".
+Parameter keys ending with ".$" are JSONPath expressions. "$." reads the state input and "$$." reads the context object.
+sfn.send_task_success(taskToken=..., output=json.dumps({...})) or sfn.send_task_failure(taskToken=..., error="Rejected", cause=...).'''
+
+[[exercises]]
+name = "res_1"
+path = "exercises/10_resilience/res_1_circuit_breaker.py"
+chapter = "ch11"
+domain = "1.1"
+hint = '''
+Keep state ("closed"/"open"/"half_open"), the number of consecutive failures and the time the circuit opened (self.clock()).
+Open: if clock() - opened_at < reset_timeout, raise CircuitOpenError WITHOUT calling fn. Otherwise move to half_open and allow one trial call.
+On success: failures = 0 and state = closed. On failure: failures += 1. Open the circuit (and restart the timer) if half_open or failures >= threshold.'''
+
+[[exercises]]
+name = "res_2"
+path = "exercises/10_resilience/res_2_serialization.py"
+chapter = "ch11"
+domain = "1.3"
+hint = '''
+boto3's DynamoDB resource refuses Python floats. Use Decimal(str(value)): Decimal(19.99) keeps the binary float error, Decimal("19.99") does not.
+Store datetimes as ISO 8601 strings in UTC (datetime.isoformat()). They sort chronologically, which suits sort keys.
+json.dumps cannot encode Decimal. Pass default=... converting integral Decimals to int and the others to float.'''
+
+[[exercises]]
+name = "cognito_1"
+path = "exercises/11_cognito/cognito_1_user_pool_auth.py"
+chapter = "ch12"
+domain = "2.1"
+hint = '''
+create_user_pool(PoolName=..., Policies={"PasswordPolicy": {"MinimumLength": 12, "RequireNumbers": True}}, AutoVerifiedAttributes=["email"]).
+create_user_pool_client(UserPoolId=..., ClientName="web", GenerateSecret=False, ExplicitAuthFlows=["ALLOW_USER_PASSWORD_AUTH", "ALLOW_REFRESH_TOKEN_AUTH"]).
+initiate_auth(ClientId=..., AuthFlow="USER_PASSWORD_AUTH", AuthParameters={"USERNAME": ..., "PASSWORD": ...})["AuthenticationResult"]. The refresh flow uses AuthFlow="REFRESH_TOKEN_AUTH" and {"REFRESH_TOKEN": ...}.'''
+
+[[exercises]]
+name = "cognito_2"
+path = "exercises/11_cognito/cognito_2_jwt_claims.py"
+chapter = "ch12"
+domain = "2.1"
+hint = '''
+A JWT is header.payload.signature, each part base64url-encoded WITHOUT padding. Add "=" * (-len(part) % 4) before decoding.
+Check exp > now(), iss == expected issuer, token_use == "access" and client_id == expected client.
+Groups live in the "cognito:groups" claim, a list that is absent when the user belongs to no group.'''
+
+[[exercises]]
+name = "cognito_3"
+path = "exercises/11_cognito/cognito_3_identity_pool.py"
+chapter = "ch12"
+domain = "2.1"
+hint = '''
+create_identity_pool(IdentityPoolName=..., AllowUnauthenticatedIdentities=False, CognitoIdentityProviders=[{"ProviderName": provider, "ClientId": client_id}]).
+The provider name is "cognito-idp.<region>.amazonaws.com/<user-pool-id>". The same string is the key of the Logins map.
+get_id(IdentityPoolId=..., Logins={provider: id_token})["IdentityId"], then get_credentials_for_identity(IdentityId=..., Logins={provider: id_token})["Credentials"].'''
+
+[[exercises]]
+name = "kms_1"
+path = "exercises/12_kms/kms_1_encryption_context.py"
+chapter = "ch13"
+domain = "2.2"
+hint = '''
+kms.encrypt(KeyId=..., Plaintext=data.encode(), EncryptionContext={"customer_id": customer_id})["CiphertextBlob"].
+kms.decrypt(CiphertextBlob=blob, EncryptionContext={...})["Plaintext"]. Decrypt does not need the KeyId for symmetric keys, because it is stored in the blob.
+Raise ValueError when len(plaintext) > 4096 bytes. Use envelope encryption (next exercise) for bigger data.'''
+
+[[exercises]]
+name = "kms_2"
+path = "exercises/12_kms/kms_2_envelope_encryption.py"
+chapter = "ch13"
+domain = "2.2"
+hint = '''
+kms.generate_data_key(KeyId=..., KeySpec="AES_256") returns "Plaintext" (use it, then forget it) and "CiphertextBlob" (store it).
+AESGCM(plaintext_key).encrypt(nonce, data, None) with nonce = os.urandom(12). Store the nonce next to the ciphertext.
+To decrypt: kms.decrypt(CiphertextBlob=envelope["encrypted_key"])["Plaintext"] gives the data key back. Then AESGCM(key).decrypt(nonce, ciphertext, None).'''
+
+[[exercises]]
+name = "kms_3"
+path = "exercises/12_kms/kms_3_key_policy_rotation.py"
+chapter = "ch13"
+domain = "2.2"
+hint = '''
+The root statement: Principal {"AWS": "arn:aws:iam::<account>:root"}, Action "kms:*", Resource "*". It lets IAM policies in the account grant access to the key.
+Partner statement: Principal {"AWS": "arn:aws:iam::<partner>:root"}, Action ["kms:Decrypt", "kms:DescribeKey"], Resource "*".
+create_key(Policy=json.dumps(policy), Description=...), then enable_key_rotation(KeyId=...) and create_alias(AliasName="alias/orders-data", TargetKeyId=...).'''
+
+[[exercises]]
+name = "secrets_1"
+path = "exercises/13_secrets/secrets_1_parameter_store.py"
+chapter = "ch14"
+domain = "2.3"
+hint = '''
+put_parameter(Name=..., Value=..., Type="SecureString", KeyId=key_id, Overwrite=True).
+Use ssm.get_paginator("get_parameters_by_path") with Path=f"/{app}/{env}/", Recursive=True, WithDecryption=True.
+Strip the prefix from each name: "/shop/prod/db/password" → "db/password".'''
+
+[[exercises]]
+name = "secrets_2"
+path = "exercises/13_secrets/secrets_2_secret_cache.py"
+chapter = "ch14"
+domain = "2.3"
+hint = '''
+Store (value, fetched_at) per secret id. Refetch when there is no entry or clock() - fetched_at >= ttl.
+client.get_secret_value(SecretId=...)["SecretString"] is a string, here JSON, so json.loads it.
+refresh(secret_id) drops the cached entry so the next get() calls Secrets Manager again.'''
+
+[[exercises]]
+name = "secrets_3"
+path = "exercises/13_secrets/secrets_3_rotation.py"
+chapter = "ch14"
+domain = "2.3"
+hint = '''
+create: if a version with this token is already AWSPENDING, stop. Otherwise read AWSCURRENT, change the password and put_secret_value(SecretId=arn, ClientRequestToken=token, SecretString=..., VersionStages=["AWSPENDING"]).
+set/verify: read the pending value with get_secret_value(SecretId=arn, VersionId=token, VersionStage="AWSPENDING").
+finish: find the version holding AWSCURRENT in describe_secret()["VersionIdsToStages"], then update_secret_version_stage(SecretId=arn, VersionStage="AWSCURRENT", MoveToVersionId=token, RemoveFromVersionId=current).'''
+
+[[exercises]]
+name = "secrets_4"
+path = "exercises/13_secrets/secrets_4_sanitize_logs.py"
+chapter = "ch14"
+domain = "2.3"
+hint = '''
+Recurse: dict → sanitize every value (mask the value when the lower-cased key contains a sensitive word), list → sanitize each item, str → apply the regexes.
+Emails: re.sub(r"[\w.+-]+@([\w-]+\.[\w.-]+)", r"***@\1", text). AWS access key ids: (AKIA|ASIA) followed by 16 uppercase letters or digits.
+Card numbers: 13-16 digits, optionally separated by spaces or dashes. Keep only the last 4 digits, as in "****1111".'''
+
+[[exercises]]
+name = "cfn_1"
+path = "exercises/14_iac/cfn_1_template_basics.py"
+chapter = "ch15"
+domain = "3.4"
+hint = '''
+TableName: !Sub "orders-${Env}" and BillingMode: PAY_PER_REQUEST.
+RedrivePolicy needs the DLQ ARN: deadLetterTargetArn: !GetAtt OrdersDLQ.Arn (Ref on a queue returns its URL, not its ARN).
+Outputs → OrdersQueueUrl → Export → Name: !Sub "${AWS::StackName}-OrdersQueueUrl". Other stacks read it with !ImportValue.'''
+
+[[exercises]]
+name = "cfn_2"
+path = "exercises/14_iac/cfn_2_intrinsics_conditions.py"
+chapter = "ch15"
+domain = "3.4"
+hint = '''
+Conditions: IsProd: !Equals [!Ref Env, prod]. A resource or output gets "Condition: IsProd".
+!FindInMap [EnvSettings, !Ref Env, Retention] reads the Mappings section.
+VisibilityTimeout: !If [IsProd, 300, 60]. QueueName: !Join ["-", [jobs, !Ref Env, !Ref "AWS::Region"]].'''
+
+[[exercises]]
+name = "sam_1"
+path = "exercises/14_iac/sam_1_template.py"
+chapter = "ch16"
+domain = "3.4"
+hint = '''
+The transform line: Transform: AWS::Serverless-2016-10-31. Globals → Function holds the shared settings (Runtime, Timeout, Tracing, Architectures).
+AutoPublishAlias: live + DeploymentPreference: {Type: Canary10Percent5Minutes, Alarms: [!Ref ErrorsAlarm]}. SAM then uses CodeDeploy to shift traffic.
+Events → Api: {Type: Api, Properties: {Path: /orders, Method: get}} and Queue: {Type: SQS, Properties: {Queue: !GetAtt OrdersQueue.Arn, BatchSize: 10, FunctionResponseTypes: [ReportBatchItemFailures]}}.'''
+
+[[exercises]]
+name = "sam_2"
+path = "exercises/14_iac/sam_2_test_events.py"
+chapter = "ch19"
+domain = "3.3"
+hint = '''
+queryStringParameters and pathParameters must be None (not {}) when there are none. That is what API Gateway sends.
+The body is a STRING: json.dumps(body) when a body is given, otherwise None. Add "isBase64Encoded": False.
+SQS records: {"messageId", "receiptHandle", "body", "attributes": {...}, "messageAttributes": {}, "eventSource": "aws:sqs", "eventSourceARN", "awsRegion"}.'''
+
+[[exercises]]
+name = "cicd_1"
+path = "exercises/15_cicd/cicd_1_buildspec.py"
+chapter = "ch17"
+domain = "3.4"
+hint = '''
+Phases run in this order: install → pre_build → build → post_build. "runtime-versions" goes under install.
+env → parameter-store maps an env var name to a parameter NAME (CodeBuild fetches and decrypts it at build time). Do not put secrets in plain "variables".
+reports → <group name> → {files: [...], base-directory: reports, file-format: JUNITXML}. artifacts → files: [packaged.yaml]. cache → paths: [...].'''
+
+[[exercises]]
+name = "cicd_2"
+path = "exercises/15_cicd/cicd_2_appspec_hooks.py"
+chapter = "ch17"
+domain = "3.4"
+hint = '''
+EC2 in-place: ApplicationStop → DownloadBundle → BeforeInstall → Install → AfterInstall → ApplicationStart → ValidateService.
+Behind a load balancer, BeforeBlockTraffic/BlockTraffic/AfterBlockTraffic come first, and BeforeAllowTraffic/AllowTraffic/AfterAllowTraffic come last.
+ECS: BeforeInstall → Install → AfterInstall → AllowTestTraffic → AfterAllowTestTraffic → BeforeAllowTraffic → AllowTraffic → AfterAllowTraffic. Lambda: BeforeAllowTraffic → AllowTraffic → AfterAllowTraffic.'''
+
+[[exercises]]
+name = "cicd_3"
+path = "exercises/15_cicd/cicd_3_deployment_policies.py"
+chapter = "ch18"
+domain = "3.4"
+hint = '''
+Check the requirements in this order: downtime acceptable → AllAtOnce. Real-traffic testing (canary) → TrafficSplitting. Fast rollback / healthy instances untouched → Immutable.
+Then: full capacity required → RollingWithAdditionalBatch. Otherwise → Rolling (cheapest zero-downtime option).
+Serving capacity: AllAtOnce 0, Rolling n - batch, every other policy keeps n instances serving.'''
+
+[[exercises]]
+name = "cicd_4"
+path = "exercises/15_cicd/cicd_4_pipeline.py"
+chapter = "ch17"
+domain = "3.4"
+hint = '''
+An action needs name, actionTypeId {category, owner "AWS", provider, version "1"}, configuration, and input/output artifacts.
+Manual approval: category "Approval", provider "Manual", configuration {"NotificationArn": ..., "CustomData": ...}.
+Deploy with two CloudFormation actions in one stage: CHANGE_SET_REPLACE (runOrder 1), then CHANGE_SET_EXECUTE (runOrder 2), same StackName and ChangeSetName.'''
+
+[[exercises]]
+name = "ecs_1"
+path = "exercises/16_containers/ecs_1_task_definition.py"
+chapter = "ch18"
+domain = "3.1"
+hint = '''
+executionRoleArn = role used by the ECS AGENT (pull from ECR, write logs, fetch secrets). taskRoleArn = role used by YOUR CODE (e.g. S3 access).
+Secrets: "secrets": [{"name": "DB_PASSWORD", "valueFrom": <SSM parameter ARN>}]. Plain config goes in "environment": [{"name": "STAGE", "value": "prod"}].
+Fargate needs requiresCompatibilities ["FARGATE"], networkMode "awsvpc", and task-level cpu/memory as strings ("512", "1024").'''
+
+[[exercises]]
+name = "beanstalk_1"
+path = "exercises/16_containers/beanstalk_1_ebextensions.py"
+chapter = "ch18"
+domain = "3.1"
+hint = '''
+option_settings is a map of NAMESPACE → {OptionName: value}: aws:elasticbeanstalk:application:environment holds environment properties.
+aws:autoscaling:asg holds MinSize/MaxSize. aws:elasticbeanstalk:command holds DeploymentPolicy. aws:elasticbeanstalk:xray holds XRayEnabled.
+Config files live in a folder named ".ebextensions" at the ROOT of the source bundle and must end with ".config".'''
+
+[[exercises]]
+name = "cw_1"
+path = "exercises/17_observability/cw_1_custom_metrics.py"
+chapter = "ch20"
+domain = "4.2"
+hint = '''
+put_metric_data(Namespace="Shop/Checkout", MetricData=[{"MetricName": ..., "Dimensions": [...], "Value": ..., "Unit": "Milliseconds", "StorageResolution": 1}]).
+A dimension is {"Name": "PaymentProvider", "Value": provider}. Every distinct combination of dimensions is a SEPARATE metric.
+Batching: build one MetricData entry per country and send them in a single put_metric_data call.'''
+
+[[exercises]]
+name = "cw_2"
+path = "exercises/17_observability/cw_2_emf.py"
+chapter = "ch20"
+domain = "4.1"
+hint = '''
+Root object: {"_aws": {"Timestamp": ts_ms, "CloudWatchMetrics": [{"Namespace": ns, "Dimensions": [list of dimension NAMES], "Metrics": [{"Name": n, "Unit": u}, ...]}]}, ...}.
+The dimension VALUES and the metric VALUES go at the root of the JSON object, next to "_aws".
+"Dimensions" is a list of lists: [["Service", "Operation"]].'''
+
+[[exercises]]
+name = "cw_3"
+path = "exercises/17_observability/cw_3_alarms.py"
+chapter = "ch20"
+domain = "4.2"
+hint = '''
+put_metric_alarm(AlarmName=..., Namespace="AWS/Lambda", MetricName="Errors", Dimensions=[{"Name": "FunctionName", "Value": fn}], Statistic="Sum", Period=60, EvaluationPeriods=3, DatapointsToAlarm=2, ...).
+Threshold=1 with ComparisonOperator="GreaterThanOrEqualToThreshold". TreatMissingData="notBreaching", because no invocations means no errors.
+AlarmActions and OKActions take lists of SNS topic ARNs. For the DLQ alarm, use namespace AWS/SQS, metric ApproximateNumberOfMessagesVisible, dimension QueueName, statistic Maximum.'''
+
+[[exercises]]
+name = "cw_4"
+path = "exercises/17_observability/cw_4_logs_insights.py"
+chapter = "ch20"
+domain = "4.1"
+hint = '''
+Lambda writes one REPORT line per invocation. Logs Insights exposes it as @type = "REPORT" with fields @duration, @billedDuration, @maxMemoryUsed and @initDuration (cold starts only).
+Pipe commands: filter ... | fields ... | stats count(*) by bin(5m) | sort @duration desc | limit 10. Regex matching: @message like /ERROR/.
+put_metric_filter(logGroupName=..., filterName=..., filterPattern='"ERROR"', metricTransformations=[{"metricName": ..., "metricNamespace": ..., "metricValue": "1"}]).'''
+
+[[exercises]]
+name = "cw_5"
+path = "exercises/17_observability/cw_5_structured_logging.py"
+chapter = "ch20"
+domain = "4.2"
+hint = '''
+Build a dict {"timestamp", "level", "service", "message", "correlation_id", **fields} and write json.dumps(...) + "\n" to the stream.
+The correlation id comes from the incoming "x-correlation-id" header when present (propagate it), otherwise from context.aws_request_id.
+For errors, add {"error": {"type": type(exc).__name__, "message": str(exc)}}.'''
+
+[[exercises]]
+name = "xray_1"
+path = "exercises/17_observability/xray_1_annotations.py"
+chapter = "ch21"
+domain = "4.2"
+hint = '''
+put_annotation(key, value) for fields you want to SEARCH on (strings, numbers, booleans). put_metadata(key, value, namespace) for anything else.
+Wrap the downstream call: subsegment = recorder.begin_subsegment("payment-provider"), then try/finally recorder.end_subsegment(). On exception, subsegment.add_exception(exc) and re-raise.
+Filter expressions: annotation.customer_tier = "gold", combined with AND and the keyword fault (or error / throttle).'''
+
+[[exercises]]
+name = "opt_1"
+path = "exercises/18_optimization/opt_1_lambda_memory_cost.py"
+chapter = "ch23"
+domain = "4.3"
+hint = '''
+GB-seconds per invocation = (memory_mb / 1024) × (duration_ms / 1000). Lambda bills duration rounded up to the next millisecond.
+Cost per million = 1e6 × (GB-seconds × PRICE_PER_GB_SECOND + PRICE_PER_REQUEST).
+cheapest_memory: keep only configurations whose duration <= max_latency_ms (when given), then take the lowest cost.'''
+
+[[exercises]]
+name = "opt_2"
+path = "exercises/18_optimization/opt_2_cache_keys.py"
+chapter = "ch23"
+domain = "4.3"
+hint = '''
+The cache key is (path, the values of the chosen headers, the values of the chosen query string parameters). Header names are case-insensitive, so lower-case them.
+hit_ratio: walk the requests in order and keep a set of keys already seen. A request whose key is in the set is a hit.
+CachePolicyConfig → ParametersInCacheKeyAndForwardedToOrigin → HeadersConfig {"HeaderBehavior": "whitelist", "Headers": {"Quantity": 1, "Items": ["Accept-Language"]}}.'''
