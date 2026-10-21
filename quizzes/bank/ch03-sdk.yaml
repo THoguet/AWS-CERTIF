@@ -1,0 +1,273 @@
+chapter: ch03
+topic: sdk
+questions:
+  - id: sdk-001
+    domain: 2
+    task: "2.1"
+    difficulty: 2
+    question: |
+      An application on an EC2 instance should use the instance profile role, but CloudTrail shows its API calls
+      are made by an IAM user named legacy-deployer. The instance profile is correctly attached. What is the
+      MOST likely explanation?
+    options:
+      A: "AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables are set on the instance, and they take precedence over the instance profile."
+      B: "Instance profiles only work for the root user."
+      C: "The instance metadata service always returns the credentials of the user who launched the instance."
+      D: "The SDK requires the region to be set before it can use instance profiles."
+    answer: [A]
+    explanation: |
+      The default credential provider chain checks environment variables (and credential files) before the
+      instance metadata service. Leftover keys win.
+      B and C are false.
+      D: a missing Region causes a different error and does not change the identity.
+    refs: [book/src/ch03-cli-sdk-sts.md]
+
+  - id: sdk-002
+    domain: 1
+    task: "1.1"
+    difficulty: 1
+    question: |
+      A reporting job lists objects in a bucket with a single call to ListObjectsV2 and always reports exactly
+      1,000 objects, although the bucket holds 25,000. How should the developer fix the code?
+    options:
+      A: "Use the SDK paginator for list_objects_v2 (or loop on ContinuationToken) to read every page."
+      B: "Set MaxKeys to 25000."
+      C: "Enable S3 Transfer Acceleration."
+      D: "Use a strongly consistent read option."
+    answer: [A]
+    explanation: |
+      ListObjectsV2 returns at most 1,000 keys per call. Paginators follow the continuation token for you.
+      B: MaxKeys cannot exceed 1,000.
+      C speeds up transfers, not listing.
+      D: S3 is already strongly consistent, and that is not the issue.
+    refs: [book/src/ch03-cli-sdk-sts.md]
+
+  - id: sdk-003
+    domain: 1
+    task: "1.1"
+    difficulty: 2
+    question: |
+      A Python application occasionally fails with ProvisionedThroughputExceededException when writing to
+      DynamoDB during short bursts. The team wants the MOST resilient behavior with the LEAST custom code.
+      What should they do?
+    options:
+      A: "Configure the boto3 client with the standard (or adaptive) retry mode and a higher maximum number of attempts."
+      B: "Wrap every call in a loop that retries immediately until it succeeds."
+      C: "Catch the exception and drop the write."
+      D: "Create a new client for every retry."
+    answer: [A]
+    explanation: |
+      The SDK retry modes already implement exponential backoff with jitter for throttling errors. Raising
+      the attempt count makes bursts survivable with zero custom logic.
+      B hammers the table and makes things worse.
+      C loses data.
+      D adds overhead without changing the retry behavior.
+    refs: [book/src/ch03-cli-sdk-sts.md]
+
+  - id: sdk-004
+    domain: 2
+    task: "2.1"
+    difficulty: 2
+    question: |
+      A script calls sts.assume_role() and builds an S3 client with the returned AccessKeyId and
+      SecretAccessKey. Every S3 call fails with "The security token included in the request is invalid".
+      What is wrong?
+    options:
+      A: "The SessionToken from the AssumeRole response was not passed to the client."
+      B: "The role must be assumed with GetSessionToken instead."
+      C: "S3 does not accept temporary credentials."
+      D: "The DurationSeconds parameter must be at least 3600."
+    answer: [A]
+    explanation: |
+      Temporary credentials have three parts. Without the session token, AWS rejects the request.
+      B: GetSessionToken does not assume roles.
+      C is false.
+      D: the minimum is 900 seconds, and the duration is unrelated to this error.
+    refs: [book/src/ch03-cli-sdk-sts.md]
+
+  - id: sdk-005
+    domain: 2
+    task: "2.1"
+    difficulty: 3
+    question: |
+      A long-running batch process copies temporary credentials obtained with aws sts assume-role into
+      environment variables at startup. After about an hour it fails with ExpiredTokenException. Which change
+      fixes this with the LEAST effort?
+    options:
+      A: "Configure an assume-role profile (role_arn + source_profile) so that the SDK refreshes the role credentials automatically."
+      B: "Request credentials valid for 30 days."
+      C: "Replace the role with long-term access keys of an IAM user."
+      D: "Catch ExpiredTokenException and restart the whole process."
+    answer: [A]
+    explanation: |
+      When the SDK assumes the role itself (assume-role profile or credential provider), it refreshes the
+      credentials before they expire. Static values copied into environment variables never refresh.
+      B: role sessions last at most 12 hours.
+      C replaces temporary credentials with risky long-term keys.
+      D works, but is crude and loses progress.
+    refs: [book/src/ch03-cli-sdk-sts.md]
+
+  - id: sdk-006
+    domain: 1
+    task: "1.1"
+    difficulty: 2
+    question: |
+      A developer must list the IDs of running EC2 instances among 20,000 instances with the AWS CLI, as fast
+      as possible. Which approach is MOST efficient?
+    options:
+      A: "Use --filters Name=instance-state-name,Values=running (server-side) and --query to project the IDs."
+      B: "Use only --query to filter on the state (client-side)."
+      C: "Download all instances with --output json and filter with grep."
+      D: "Use --dry-run to avoid pagination."
+    answer: [A]
+    explanation: |
+      --filters reduces the data returned by the service. --query then shapes the output locally (JMESPath).
+      B and C download everything first.
+      D only checks permissions and returns no data.
+    refs: [book/src/ch03-cli-sdk-sts.md]
+
+  - id: sdk-007
+    domain: 2
+    task: "2.1"
+    difficulty: 2
+    question: |
+      Developers use their own IAM users and must run CLI commands in a production account by assuming the
+      role prod-admin, which requires MFA. How should their ~/.aws/config profile be configured?
+    options:
+      A: "role_arn = the prod-admin role ARN, source_profile = their default profile, and mfa_serial = their MFA device ARN."
+      B: "aws_access_key_id and aws_secret_access_key of the prod-admin role."
+      C: "credential_process pointing to a script that prints the root user's keys."
+      D: "region = us-east-1 and output = json; MFA is handled by the console only."
+    answer: [A]
+    explanation: |
+      An assume-role profile tells the CLI to call AssumeRole with the source profile's credentials, and
+      mfa_serial makes it prompt for the MFA code.
+      B: roles have no long-term keys.
+      C uses root keys, which is terrible practice.
+      D does not assume anything.
+    refs: [book/src/ch03-cli-sdk-sts.md]
+
+  - id: sdk-008
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      An on-premises server suddenly receives SignatureDoesNotMatch / RequestTimeTooSkewed errors on every
+      AWS API call. Its credentials have not changed and work on other machines. What is the MOST likely cause?
+    options:
+      A: "The server's system clock has drifted by several minutes."
+      B: "The IAM user has been deleted."
+      C: "The server uses IPv6."
+      D: "The account has reached its API request quota."
+    answer: [A]
+    explanation: |
+      SigV4 signatures include a timestamp. A clock skew of more than about 5 minutes makes AWS reject the
+      request. Synchronize the clock with NTP.
+      B would give InvalidClientTokenId.
+      C is irrelevant.
+      D gives throttling errors.
+    refs: [book/src/ch03-cli-sdk-sts.md]
+
+  - id: sdk-009
+    domain: 1
+    task: "1.1"
+    difficulty: 1
+    question: |
+      A deployment script creates a DynamoDB table and immediately writes items to it, which fails with
+      ResourceNotFoundException. What is the cleanest fix?
+    options:
+      A: "Call the table_exists waiter after CreateTable before writing."
+      B: "Add time.sleep(60) after CreateTable."
+      C: "Retry the writes forever until they succeed."
+      D: "Use a strongly consistent PutItem."
+    answer: [A]
+    explanation: |
+      Tables are created asynchronously (CREATING → ACTIVE). Waiters poll DescribeTable with proper delays
+      and a maximum number of attempts.
+      B is fragile, either too long or too short.
+      C has no upper bound.
+      D: PutItem has no consistency option, and that is not the problem.
+    refs: [book/src/ch03-cli-sdk-sts.md]
+
+  - id: sdk-010
+    domain: 2
+    task: "2.1"
+    difficulty: 2
+    question: |
+      An IAM policy only allows deleting backups when MFA was used. A developer with an IAM user and an MFA
+      device wants to perform this deletion from the CLI. Which STS API should they call first?
+    options:
+      A: "GetSessionToken with the MFA device serial number and a token code."
+      B: "GetFederationToken."
+      C: "AssumeRoleWithWebIdentity."
+      D: "DecodeAuthorizationMessage."
+    answer: [A]
+    explanation: |
+      GetSessionToken with SerialNumber/TokenCode returns temporary credentials marked as MFA-authenticated,
+      so aws:MultiFactorAuthPresent is true.
+      B is for federated users through a proxy.
+      C exchanges OIDC tokens.
+      D decodes error messages.
+    refs: [book/src/ch03-cli-sdk-sts.md]
+
+  - id: sdk-011
+    domain: 1
+    task: "1.1"
+    difficulty: 1
+    question: |
+      A team wants AI-generated code suggestions in their IDE, help writing unit tests for existing code, and
+      automated security scans of their code, with the least setup. Which AWS service should they use?
+    options:
+      A: "Amazon Q Developer"
+      B: "AWS CodeBuild"
+      C: "Amazon Inspector"
+      D: "AWS Cloud9"
+    answer: [A]
+    explanation: |
+      Amazon Q Developer (which replaced CodeWhisperer) provides inline suggestions, chat, test generation,
+      and security scanning in IDEs.
+      B runs builds.
+      C scans running workloads and images.
+      D was a cloud IDE, closed to new customers.
+    refs: [book/src/ch03-cli-sdk-sts.md]
+
+  - id: sdk-012
+    domain: 2
+    task: "2.1"
+    difficulty: 2
+    question: |
+      A containerized application on Amazon ECS (Fargate) must write to DynamoDB. How should it obtain AWS
+      credentials?
+    options:
+      A: "Assign an IAM task role. The SDK obtains temporary credentials from the container credentials endpoint automatically."
+      B: "Bake an IAM user's access keys into the container image."
+      C: "Pass access keys as plain environment variables in the task definition."
+      D: "Use the task execution role from the application code."
+    answer: [A]
+    explanation: |
+      The task role's credentials are served through the container credentials provider
+      (AWS_CONTAINER_CREDENTIALS_RELATIVE_URI), which the SDK uses without code changes.
+      B and C embed long-term secrets.
+      D: the execution role is for the ECS agent (image pull, logs, secrets), not for application calls.
+    refs: [book/src/ch03-cli-sdk-sts.md, book/src/ch18-beanstalk-containers.md]
+
+  - id: sdk-013
+    domain: 1
+    task: "1.1"
+    difficulty: 1
+    question: |
+      A developer on a locked-down laptop needs to run a few AWS CLI commands against their account using
+      their console identity, without installing anything or creating access keys. What should they use?
+    options:
+      A: "AWS CloudShell from the AWS Management Console."
+      B: "An EC2 instance with an IAM user's access keys."
+      C: "The AWS Tools for PowerShell on the laptop."
+      D: "Amazon WorkSpaces."
+    answer: [A]
+    explanation: |
+      CloudShell is a browser-based shell already authenticated with the console identity, with the AWS CLI
+      preinstalled.
+      B requires access keys.
+      C requires installation.
+      D is a full virtual desktop, which is overkill.
+    refs: [book/src/ch03-cli-sdk-sts.md]

@@ -1,0 +1,268 @@
+chapter: ch10
+topic: streaming
+questions:
+  - id: streaming-001
+    domain: 1
+    task: "1.1"
+    difficulty: 2
+    question: |
+      A Kinesis data stream in provisioned mode must ingest 4,500 records per second, 0.5 KB each. What is the
+      minimum number of shards for the writes?
+    options:
+      A: "5"
+      B: "3"
+      C: "2"
+      D: "9"
+    answer: [A]
+    explanation: |
+      Each shard accepts 1 MB/s OR 1,000 records/s. Bandwidth: 4,500 × 0.5 KB ≈ 2.2 MB/s, which needs 3 shards.
+      Record rate: 4,500/s, which needs 5 shards. The higher number wins: 5.
+    refs: [book/src/ch10-streaming-orchestration.md]
+
+  - id: streaming-002
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      A producer writes clickstream data to a 10-shard stream, using the constant string "clicks" as the
+      partition key. It gets ProvisionedThroughputExceededException although the total throughput is far below
+      the stream capacity. What should the developer change?
+    options:
+      A: "Use a high-cardinality partition key, such as the user or session ID, to spread records across shards."
+      B: "Add 10 more shards."
+      C: "Switch consumers to enhanced fan-out."
+      D: "Increase the retention period."
+    answer: [A]
+    explanation: |
+      Records with the same partition key go to the same shard, so every record lands on a single shard
+      limited to 1 MB/s or 1,000 records/s. A varied key distributes the load.
+      B: new shards would stay idle.
+      C affects reads.
+      D is unrelated.
+    refs: [book/src/ch10-streaming-orchestration.md]
+
+  - id: streaming-003
+    domain: 1
+    task: "1.1"
+    difficulty: 2
+    question: |
+      Six independent applications read the same Kinesis stream. Each needs low latency and its own full read
+      throughput, and they currently fall behind because they share 2 MB/s per shard. What should the developer
+      enable?
+    options:
+      A: "Enhanced fan-out consumers (SubscribeToShard), giving each consumer 2 MB/s per shard."
+      B: "Server-side encryption."
+      C: "A longer retention period."
+      D: "KPL aggregation on the producer."
+    answer: [A]
+    explanation: |
+      With shared throughput, consumers split 2 MB/s per shard. Enhanced fan-out gives each registered consumer
+      a dedicated 2 MB/s per shard, pushed over HTTP/2, with lower latency.
+      B, C and D do not add read throughput.
+    refs: [book/src/ch10-streaming-orchestration.md]
+
+  - id: streaming-004
+    domain: 1
+    task: "1.1"
+    difficulty: 1
+    question: |
+      A company wants to collect application events and store them in S3 as compressed Parquet files partitioned
+      by date, for Athena queries, with the LEAST operational overhead. Near real-time delivery (within minutes)
+      is acceptable. Which service should they use?
+    options:
+      A: "Amazon Data Firehose with format conversion and dynamic partitioning."
+      B: "Kinesis Data Streams with a custom KCL application writing to S3."
+      C: "Amazon SQS with a Lambda function batching messages into files."
+      D: "Amazon SNS with an S3 subscription."
+    answer: [A]
+    explanation: |
+      Firehose is fully managed: it buffers, converts to Parquet, compresses, partitions and delivers to S3.
+      B and C require custom code.
+      D: SNS cannot deliver directly to S3.
+    refs: [book/src/ch10-streaming-orchestration.md]
+
+  - id: streaming-005
+    domain: 1
+    task: "1.1"
+    difficulty: 2
+    question: |
+      A fraud detection system must process payment events within milliseconds, run several custom consumers on
+      the same data, and re-process the last 3 days of events after deploying a new model. Which service fits?
+    options:
+      A: "Amazon Kinesis Data Streams with extended retention."
+      B: "Amazon Data Firehose."
+      C: "Amazon SQS standard."
+      D: "Amazon SNS."
+    answer: [A]
+    explanation: |
+      Data Streams offers real-time reads, many independent consumers, ordering per partition key, and replay
+      within the retention period (up to 365 days).
+      B is buffered delivery without replay.
+      C: each message goes to one consumer and is deleted after processing.
+      D does not store messages.
+    refs: [book/src/ch10-streaming-orchestration.md]
+
+  - id: streaming-006
+    domain: 1
+    task: "1.1"
+    difficulty: 2
+    question: |
+      A consumer application built with the Kinesis Client Library (KCL) runs on several EC2 instances. Where
+      does the KCL keep shard leases and processing checkpoints?
+    options:
+      A: "In an Amazon DynamoDB table created for the application."
+      B: "In the Kinesis stream itself."
+      C: "On the local disk of each instance."
+      D: "In Amazon S3."
+    answer: [A]
+    explanation: |
+      The KCL uses a DynamoDB lease table to coordinate workers (one lease per shard) and store checkpoints, so
+      a restarted worker resumes where processing stopped. Give that table enough capacity.
+      B, C and D are incorrect.
+    refs: [book/src/ch10-streaming-orchestration.md]
+
+  - id: streaming-007
+    domain: 1
+    task: "1.1"
+    difficulty: 2
+    question: |
+      An order workflow must pause until a manager approves large orders, which can take up to 5 days, and then
+      continue. Which Step Functions configuration should be used?
+    options:
+      A: "A Standard workflow with a task using the .waitForTaskToken pattern. The approval app calls SendTaskSuccess or SendTaskFailure with the token."
+      B: "An Express workflow with a Wait state of 5 days."
+      C: "A Lambda function that sleeps until the approval arrives."
+      D: "An Express workflow with the .sync integration pattern."
+    answer: [A]
+    explanation: |
+      Standard workflows can run up to 1 year. The callback pattern pauses the execution until the task token is
+      returned, and you pay nothing while waiting.
+      B: Express workflows last at most 5 minutes.
+      C: Lambda times out after 15 minutes.
+      D: .sync waits for AWS jobs, not for humans, and Express is too short anyway.
+    refs: [book/src/ch10-streaming-orchestration.md]
+
+  - id: streaming-008
+    domain: 1
+    task: "1.1"
+    difficulty: 2
+    question: |
+      An IoT platform needs to run a short, idempotent 4-step transformation workflow for 50,000 incoming events
+      per second. Each run takes under 2 seconds. Which option is the MOST cost-effective?
+    options:
+      A: "Step Functions Express workflows."
+      B: "Step Functions Standard workflows."
+      C: "One EC2 instance per step."
+      D: "AWS Batch jobs."
+    answer: [A]
+    explanation: |
+      Express workflows are built for high-volume, short-duration event processing, priced per request and
+      duration, with at-least-once semantics (fine for idempotent steps).
+      B is priced per state transition, which is expensive at this volume.
+      C and D are not suited to this pattern.
+    refs: [book/src/ch10-streaming-orchestration.md]
+
+  - id: streaming-009
+    domain: 1
+    task: "1.1"
+    difficulty: 2
+    question: |
+      A Task state invoking a Lambda function occasionally fails with Lambda.TooManyRequestsException during
+      bursts. The workflow should retry automatically with increasing delays before giving up. What should be
+      added to the state?
+    options:
+      A: "A Retry field with ErrorEquals [\"Lambda.TooManyRequestsException\"], IntervalSeconds, MaxAttempts and BackoffRate."
+      B: "A Catch field with ErrorEquals [\"States.ALL\"] going to a Fail state."
+      C: "A Wait state after the task."
+      D: "A higher TimeoutSeconds."
+    answer: [A]
+    explanation: |
+      Retry handles transient errors with exponential backoff (BackoffRate) and optional jitter.
+      B gives up immediately (Catch is for after retries).
+      C waits even on success.
+      D does not retry anything.
+    refs: [book/src/ch10-streaming-orchestration.md]
+
+  - id: streaming-010
+    domain: 4
+    task: "4.1"
+    difficulty: 3
+    question: |
+      In a state machine, a Catch on the ChargeCard state routes errors to a NotifyFailure state. NotifyFailure
+      needs the original order data AND the error, but it only receives the error object. How should the Catch
+      be configured?
+    options:
+      A: "Add \"ResultPath\": \"$.error\" to the Catch so the error is added to the original input instead of replacing it."
+      B: "Add \"OutputPath\": \"$.error\" to the Catch."
+      C: "Add \"InputPath\": null to NotifyFailure."
+      D: "Use a Parallel state."
+    answer: [A]
+    explanation: |
+      By default the error output replaces the state input. ResultPath "$.error" merges the error into the
+      input under the error key.
+      B would keep only the error.
+      C passes an empty input.
+      D is unrelated.
+    refs: [book/src/ch10-streaming-orchestration.md]
+
+  - id: streaming-011
+    domain: 1
+    task: "1.1"
+    difficulty: 2
+    question: |
+      A workflow must start an ECS Fargate task that processes a file and continue only when the task has
+      finished, without writing polling code. Which service integration pattern should the Task state use?
+    options:
+      A: "Run a Job (.sync), e.g. arn:aws:states:::ecs:runTask.sync"
+      B: "Request Response (arn:aws:states:::ecs:runTask)"
+      C: "Wait for Callback (.waitForTaskToken) without any code in the container"
+      D: "An Activity polled by the ECS task"
+    answer: [A]
+    explanation: |
+      The .sync pattern makes Step Functions wait until the job (ECS task, Batch job, Glue job, CodeBuild
+      build...) completes.
+      B returns as soon as the task starts.
+      C requires the container to send the token back.
+      D is a legacy pattern requiring polling code.
+    refs: [book/src/ch10-streaming-orchestration.md]
+
+  - id: streaming-012
+    domain: 1
+    task: "1.1"
+    difficulty: 2
+    question: |
+      A team must process 2 million images stored in S3 with the same Lambda-based steps, with high parallelism and
+      per-item error tolerance, using Step Functions. Which state fits BEST?
+    options:
+      A: "A Map state in distributed mode reading the S3 object list."
+      B: "An inline Map state with all keys passed in the execution input."
+      C: "A Parallel state with 2 million branches."
+      D: "A Choice state looping over the keys."
+    answer: [A]
+    explanation: |
+      Distributed Map runs child workflows at large scale over items read from S3, with concurrency controls
+      and failure tolerance thresholds.
+      B: execution input and history sizes are limited.
+      C: Parallel branches are static.
+      D would be extremely slow and costly.
+    refs: [book/src/ch10-streaming-orchestration.md]
+
+  - id: streaming-013
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      The IteratorAge metric of a Lambda function consuming a Kinesis stream grows steadily during business hours,
+      and the function has no errors. Which actions can help the consumer keep up? (Choose TWO.)
+    options:
+      A: "Increase the event source mapping's ParallelizationFactor (up to 10 concurrent batches per shard)."
+      B: "Increase the number of shards."
+      C: "Reduce the stream's retention period."
+      D: "Switch the function to asynchronous invocation."
+      E: "Enable S3 Transfer Acceleration."
+    answer: [A, B]
+    explanation: |
+      A growing IteratorAge means consumers are falling behind. More concurrent processing per shard, or more
+      shards (more parallel batches), increases throughput. Faster code or more memory also helps.
+      C, D and E do not increase processing throughput.
+    refs: [book/src/ch10-streaming-orchestration.md]

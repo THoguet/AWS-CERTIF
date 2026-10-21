@@ -1,0 +1,315 @@
+chapter: ch02
+topic: iam
+questions:
+  - id: iam-001
+    domain: 2
+    task: "2.1"
+    difficulty: 1
+    question: |
+      A developer's IAM role has an identity policy allowing s3:* on all resources. The account belongs to an
+      AWS Organizations OU whose service control policy (SCP) denies s3:DeleteBucket. What happens when the
+      developer tries to delete a bucket?
+    options:
+      A: "The request is denied because the explicit deny in the SCP overrides the allow."
+      B: "The request succeeds because identity policies take precedence over SCPs."
+      C: "The request succeeds because SCPs only apply to the root user."
+      D: "The request is denied only if the bucket policy also denies it."
+    answer: [A]
+    explanation: |
+      An explicit deny in any applicable policy, SCPs included, always wins. SCPs apply to every principal in
+      member accounts, including the root user.
+      B and C are false. D: the bucket policy is not needed for the deny to apply.
+    refs: [book/src/ch02-iam.md]
+
+  - id: iam-002
+    domain: 2
+    task: "2.1"
+    difficulty: 2
+    question: |
+      A Lambda function in account A must read objects from an S3 bucket in account B (SSE-S3 encryption).
+      The team does not want to use role assumption. Which configurations are required? (Choose TWO.)
+    options:
+      A: "An identity policy on the function's execution role allowing s3:GetObject on the bucket's objects."
+      B: "A bucket policy in account B allowing the execution role's ARN to call s3:GetObject."
+      C: "An SCP in account B allowing account A."
+      D: "A resource-based policy on the Lambda function allowing account B."
+      E: "Object ACLs granting public read access."
+    answer: [A, B]
+    explanation: |
+      Cross-account access without role assumption needs both sides: the caller's identity policy in A AND
+      the resource-based policy (bucket policy) in B.
+      C: SCPs never grant permissions.
+      D controls who can invoke the function, not what it can read.
+      E makes the data public.
+    refs: [book/src/ch02-iam.md]
+
+  - id: iam-003
+    domain: 2
+    task: "2.1"
+    difficulty: 2
+    question: |
+      A CI/CD pipeline user has lambda:CreateFunction permission. Creating a function that uses the existing
+      execution role orders-role fails with an AccessDenied error. What is missing?
+    options:
+      A: "iam:PassRole permission on orders-role for the pipeline user."
+      B: "lambda:InvokeFunction permission on the new function."
+      C: "A trust policy on the pipeline user allowing lambda.amazonaws.com."
+      D: "iam:CreateRole permission for the pipeline user."
+    answer: [A]
+    explanation: |
+      To give a role to a service (here Lambda), the caller needs iam:PassRole on that role. This prevents
+      handing a service more privileges than you hold.
+      B is about invoking, not creating.
+      C: users do not have trust policies.
+      D: the role already exists.
+    refs: [book/src/ch02-iam.md]
+
+  - id: iam-004
+    domain: 2
+    task: "2.1"
+    difficulty: 2
+    question: |
+      A third-party monitoring SaaS needs read access to CloudWatch metrics in a customer's AWS account. The
+      vendor serves many customers from its own AWS account. What is the MOST secure way to grant access?
+    options:
+      A: "Create an IAM role trusted by the vendor's account, with an sts:ExternalId condition, and give the vendor the role ARN and external ID."
+      B: "Create an IAM user with an access key and send the key to the vendor."
+      C: "Add the vendor's account to the customer's AWS Organization."
+      D: "Make the CloudWatch metrics public with a resource-based policy."
+    answer: [A]
+    explanation: |
+      Cross-account roles give temporary credentials. The external ID protects against the confused deputy
+      problem, where another of the vendor's customers tricks the vendor into using your role.
+      B uses long-term keys shared outside the company.
+      C is inappropriate and grants nothing by itself.
+      D: CloudWatch metrics cannot be made public like that.
+    refs: [book/src/ch02-iam.md]
+
+  - id: iam-005
+    domain: 2
+    task: "2.1"
+    difficulty: 2
+    question: |
+      A team granted a role broad permissions during development. They now want a least-privilege policy
+      based on the API calls the application actually made over the last 30 days, with minimal effort.
+      Which tool should they use?
+    options:
+      A: "IAM Access Analyzer policy generation based on CloudTrail activity."
+      B: "The IAM policy simulator."
+      C: "AWS Trusted Advisor."
+      D: "Amazon Inspector."
+    answer: [A]
+    explanation: |
+      Access Analyzer can generate a policy from the actions recorded in CloudTrail for a role.
+      B tests whether a policy allows an action, but does not generate one.
+      C gives high-level best-practice checks.
+      D scans workloads for vulnerabilities.
+    refs: [book/src/ch02-iam.md]
+
+  - id: iam-006
+    domain: 2
+    task: "2.1"
+    difficulty: 3
+    question: |
+      Developers must be allowed to create IAM roles for their Lambda functions, but the security team wants
+      to make sure no role they create can ever have more permissions than a defined maximum set. What
+      should be used?
+    options:
+      A: "A permissions boundary that developers must attach to every role they create (enforced with an iam:PermissionsBoundary condition)."
+      B: "An inline policy on each developer user denying iam:CreateRole."
+      C: "A resource-based policy on each Lambda function."
+      D: "AWS managed policies only."
+    answer: [A]
+    explanation: |
+      A permissions boundary caps the effective permissions of an identity. Requiring it with the
+      iam:PermissionsBoundary condition key enables safe delegated administration.
+      B blocks the requirement entirely.
+      C does not limit role permissions.
+      D does not cap anything.
+    refs: [book/src/ch02-iam.md]
+
+  - id: iam-007
+    domain: 2
+    task: "2.1"
+    difficulty: 1
+    question: |
+      Each IAM user must be able to read and write only the objects under home/<their user name>/ in a shared
+      bucket. The administrator wants a single policy attached to a group. Which element makes this possible?
+    options:
+      A: "The ${aws:username} policy variable in the Resource element."
+      B: "One inline policy per user listing their prefix."
+      C: "An S3 access point per user."
+      D: "The NotPrincipal element."
+    answer: [A]
+    explanation: |
+      Policy variables such as ${aws:username} are replaced at evaluation time, so one policy serves every
+      user. The policy must use Version 2012-10-17.
+      B and C work but are not a single policy.
+      D excludes principals and does not express per-user paths.
+    refs: [book/src/ch02-iam.md]
+
+  - id: iam-008
+    domain: 2
+    task: "2.1"
+    difficulty: 2
+    question: |
+      Several roles need the same permissions: read-only access to two specific DynamoDB tables. The team
+      wants to reuse the policy, track changes with versions, and roll back a bad change. Which policy type
+      fits BEST?
+    options:
+      A: "A customer managed policy."
+      B: "An AWS managed policy such as AmazonDynamoDBReadOnlyAccess."
+      C: "An inline policy in each role."
+      D: "A service control policy."
+    answer: [A]
+    explanation: |
+      Customer managed policies are reusable across identities, keep up to 5 versions with a default version
+      (easy rollback), and can be scoped to exact resources.
+      B grants read access to ALL tables, which is not least privilege.
+      C duplicates the policy and has no versioning.
+      D only restricts and never grants.
+    refs: [book/src/ch02-iam.md]
+
+  - id: iam-009
+    domain: 2
+    task: "2.1"
+    difficulty: 2
+    question: |
+      Deploying a Lambda function fails with "The role defined for the function cannot be assumed by Lambda".
+      The role has a permissions policy allowing DynamoDB and CloudWatch Logs access. What should the
+      developer fix?
+    options:
+      A: "Add lambda.amazonaws.com as a principal allowed to call sts:AssumeRole in the role's trust policy."
+      B: "Add lambda:InvokeFunction to the role's permissions policy."
+      C: "Attach the AdministratorAccess policy to the role."
+      D: "Create an access key for the role."
+    answer: [A]
+    explanation: |
+      Who can assume a role is defined by its trust policy (AssumeRolePolicyDocument), not by its permissions
+      policies.
+      B and C change permissions, not trust.
+      D: roles do not have access keys.
+    refs: [book/src/ch02-iam.md]
+
+  - id: iam-010
+    domain: 2
+    task: "2.1"
+    difficulty: 2
+    question: |
+      A company requires that IAM users can only terminate EC2 instances when they authenticated with MFA.
+      How should the policy express this?
+    options:
+      A: "Allow ec2:TerminateInstances with the condition Bool aws:MultiFactorAuthPresent = true."
+      B: "Allow ec2:TerminateInstances with the condition IpAddress aws:SourceIp = the office range."
+      C: "Allow ec2:TerminateInstances only in an inline policy."
+      D: "Allow ec2:TerminateInstances with the condition StringEquals aws:RequestedRegion = us-east-1."
+    answer: [A]
+    explanation: |
+      The aws:MultiFactorAuthPresent key is true when the request was made with MFA-backed credentials
+      (console MFA sign-in or GetSessionToken with MFA).
+      B restricts by IP, not MFA.
+      C: the policy type does not matter.
+      D restricts Regions.
+    refs: [book/src/ch02-iam.md, book/src/ch03-cli-sdk-sts.md]
+
+  - id: iam-011
+    domain: 2
+    task: "2.2"
+    difficulty: 1
+    question: |
+      A bucket containing medical records must reject any request that does not use HTTPS. Which statement
+      should be added to the bucket policy?
+    options:
+      A: "Deny s3:* for Principal * on the bucket and its objects when aws:SecureTransport is false."
+      B: "Allow s3:* for Principal * when aws:SecureTransport is true."
+      C: "Deny s3:GetObject when s3:x-amz-server-side-encryption is not aws:kms."
+      D: "Enable default encryption with SSE-S3."
+    answer: [A]
+    explanation: |
+      An explicit Deny conditioned on aws:SecureTransport = false blocks all plain HTTP requests, whoever
+      makes them.
+      B would grant everyone access over HTTPS.
+      C concerns encryption at rest headers.
+      D is encryption at rest, not in transit.
+    refs: [book/src/ch02-iam.md, book/src/ch04-s3.md]
+
+  - id: iam-012
+    domain: 4
+    task: "4.1"
+    difficulty: 1
+    question: |
+      A script running on a build server gets AccessDenied errors. The developer suspects it is not using the
+      intended role. Which command shows the identity actually used by the AWS CLI on that server?
+    options:
+      A: "aws sts get-caller-identity"
+      B: "aws iam list-roles"
+      C: "aws configure list-profiles"
+      D: "aws iam get-account-authorization-details"
+    answer: [A]
+    explanation: |
+      sts get-caller-identity returns the account, user/role ARN and user id of the credentials in use. It
+      needs no permissions.
+      B and D list IAM entities but say nothing about the current credentials.
+      C lists configured profiles, not the one actually resolved.
+    refs: [book/src/ch02-iam.md, book/src/ch03-cli-sdk-sts.md]
+
+  - id: iam-013
+    domain: 2
+    task: "2.1"
+    difficulty: 3
+    question: |
+      A company creates new projects every week. Each project has its own resources and team. Writing new
+      IAM policies for every project has become unmanageable. Which approach scales BEST?
+    options:
+      A: "Attribute-based access control: tag principals and resources with the project, and allow actions when aws:ResourceTag/project equals aws:PrincipalTag/project."
+      B: "Create one IAM group per project with a dedicated customer managed policy."
+      C: "Give every developer PowerUserAccess."
+      D: "Use a separate AWS account per developer."
+    answer: [A]
+    explanation: |
+      ABAC uses tags in conditions, so one policy covers current and future projects without changes.
+      B is the RBAC approach that does not scale here.
+      C violates least privilege.
+      D is excessive and does not solve project-level access.
+    refs: [book/src/ch02-iam.md]
+
+  - id: iam-014
+    domain: 2
+    task: "2.2"
+    difficulty: 2
+    question: |
+      A user has the AmazonS3FullAccess managed policy but receives AccessDenied when downloading objects
+      from a bucket that uses SSE-KMS with a customer managed key. Other buckets work. What is the MOST
+      likely cause?
+    options:
+      A: "The KMS key policy (or the user's IAM permissions allowed by it) does not grant kms:Decrypt on the key."
+      B: "The bucket has versioning enabled."
+      C: "The objects are stored in S3 Standard-IA."
+      D: "The bucket policy is missing a statement allowing s3:ListBucket."
+    answer: [A]
+    explanation: |
+      Reading an SSE-KMS object requires kms:Decrypt on the key, and the key policy must allow it (directly or
+      by delegating to IAM). AmazonS3FullAccess contains no KMS permissions.
+      B and C do not affect access.
+      D would affect listing, not GetObject.
+    refs: [book/src/ch02-iam.md, book/src/ch13-kms-encryption.md]
+
+  - id: iam-015
+    domain: 2
+    task: "2.1"
+    difficulty: 2
+    question: |
+      A policy grants s3:ListBucket and s3:GetObject with the single resource "arn:aws:s3:::reports/*".
+      Downloading objects works, but listing the bucket fails with AccessDenied. Why?
+    options:
+      A: "s3:ListBucket applies to the bucket ARN (arn:aws:s3:::reports), which is not in the policy."
+      B: "ListBucket requires the s3:prefix condition key to be set."
+      C: "Listing is only possible from the console."
+      D: "The bucket must have versioning enabled to be listed."
+    answer: [A]
+    explanation: |
+      S3 has two resource types: the bucket (for ListBucket) and objects (bucket/*, for Get/PutObject). Add
+      "arn:aws:s3:::reports" for ListBucket.
+      B: the condition is optional.
+      C and D are false.
+    refs: [book/src/ch02-iam.md]

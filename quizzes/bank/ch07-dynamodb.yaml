@@ -1,0 +1,411 @@
+chapter: ch07
+topic: dynamodb
+questions:
+  - id: dynamodb-001
+    domain: 1
+    task: "1.3"
+    difficulty: 2
+    question: |
+      An application performs 15 strongly consistent reads per second of items that are 7 KB each. How many
+      read capacity units must the table provision?
+    options:
+      A: "30 RCU"
+      B: "15 RCU"
+      C: "27 RCU"
+      D: "60 RCU"
+    answer: [A]
+    explanation: |
+      Each strongly consistent read of up to 4 KB costs 1 RCU. A 7 KB item rounds up to 8 KB = 2 units.
+      2 × 15 = 30 RCU.
+      B ignores the item size.
+      C does not round up.
+      D would be transactional reads.
+    refs: [book/src/ch07-dynamodb.md]
+
+  - id: dynamodb-002
+    domain: 1
+    task: "1.3"
+    difficulty: 2
+    question: |
+      A dashboard performs 20 eventually consistent reads per second of 9 KB items. How many RCUs are needed?
+    options:
+      A: "30 RCU"
+      B: "60 RCU"
+      C: "45 RCU"
+      D: "20 RCU"
+    answer: [A]
+    explanation: |
+      A 9 KB item rounds up to 12 KB = 3 units per strongly consistent read. Eventually consistent reads cost
+      half: 3 × 20 / 2 = 30 RCU.
+      B would be strongly consistent.
+      C and D use wrong rounding.
+    refs: [book/src/ch07-dynamodb.md]
+
+  - id: dynamodb-003
+    domain: 1
+    task: "1.3"
+    difficulty: 2
+    question: |
+      An IoT backend writes 50 items per second. Each item is 2.5 KB. How many write capacity units are required
+      (standard, non-transactional writes)?
+    options:
+      A: "150 WCU"
+      B: "125 WCU"
+      C: "50 WCU"
+      D: "300 WCU"
+    answer: [A]
+    explanation: |
+      1 WCU = 1 write/s of up to 1 KB, and sizes round up: 2.5 KB → 3 units. 3 × 50 = 150 WCU.
+      B does not round up.
+      C ignores the size.
+      D would be transactional writes.
+    refs: [book/src/ch07-dynamodb.md]
+
+  - id: dynamodb-004
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      A table storing sensor events uses the event date (YYYY-MM-DD) as its partition key. Writes are throttled
+      even though CloudWatch shows consumed capacity far below the provisioned capacity. What is the root cause
+      and fix?
+    options:
+      A: "All writes of the day hit the same partition key value (a hot partition). Use a high-cardinality key such as the sensor ID, or add a shard suffix."
+      B: "The table needs more provisioned WCU."
+      C: "The items are larger than 400 KB."
+      D: "Strongly consistent reads consume write capacity."
+    answer: [A]
+    explanation: |
+      Throughput is distributed per partition. A low-cardinality key concentrates traffic on one partition,
+      which throttles even when the table-level capacity is unused.
+      B does not fix the concentration.
+      C would fail with a validation error.
+      D is false.
+    refs: [book/src/ch07-dynamodb.md]
+
+  - id: dynamodb-005
+    domain: 1
+    task: "1.3"
+    difficulty: 1
+    question: |
+      A table with partition key order_id is in production. A new feature needs to list all orders of a customer
+      sorted by date. What should the developer add?
+    options:
+      A: "A global secondary index with partition key customer_id and sort key order_date."
+      B: "A local secondary index with partition key customer_id."
+      C: "A Scan with a FilterExpression on customer_id."
+      D: "A second table updated manually by the application."
+    answer: [A]
+    explanation: |
+      GSIs can be added to existing tables, with any partition and sort key.
+      B: LSIs must share the table's partition key and can only be created with the table.
+      C reads the whole table every time.
+      D adds consistency problems that GSIs solve for you.
+    refs: [book/src/ch07-dynamodb.md]
+
+  - id: dynamodb-006
+    domain: 1
+    task: "1.3"
+    difficulty: 3
+    question: |
+      A new table is being designed. Queries must retrieve a customer's orders by order date AND, separately, by
+      order total, and both queries require strongly consistent reads. Which design meets the requirements?
+    options:
+      A: "Partition key customer_id, sort key order_date, plus a local secondary index on customer_id + order_total, created with the table."
+      B: "Partition key customer_id, sort key order_date, plus a global secondary index on customer_id + order_total."
+      C: "Partition key order_total only."
+      D: "Two global secondary indexes added after the table is created."
+    answer: [A]
+    explanation: |
+      LSIs support strongly consistent reads and share the partition key. They must be defined when the table
+      is created.
+      B and D: GSIs only support eventually consistent reads.
+      C does not support either access pattern.
+    refs: [book/src/ch07-dynamodb.md]
+
+  - id: dynamodb-007
+    domain: 4
+    task: "4.3"
+    difficulty: 2
+    question: |
+      A Scan with a FilterExpression returns 20 matching items out of 2 million, but consumes a huge amount of read
+      capacity and takes seconds. How should the developer optimize the access pattern?
+    options:
+      A: "Model the access pattern with a key or GSI so that a Query reads only the matching items."
+      B: "Add a ProjectionExpression to return fewer attributes."
+      C: "Use eventually consistent reads with the same Scan."
+      D: "Increase the page size with the Limit parameter."
+    answer: [A]
+    explanation: |
+      Filters are applied after items are read, so capacity is consumed for everything scanned. Only a Query on
+      a suitable key or index reads less.
+      B reduces network payload, not RCU.
+      C halves the cost but still reads 2 million items.
+      D changes pagination only.
+    refs: [book/src/ch07-dynamodb.md]
+
+  - id: dynamodb-008
+    domain: 1
+    task: "1.3"
+    difficulty: 2
+    question: |
+      Two support agents edit the same customer record at the same time, and one agent's changes silently
+      overwrite the other's. Which technique prevents lost updates in DynamoDB?
+    options:
+      A: "Optimistic locking: store a version attribute and update with a ConditionExpression on the expected version."
+      B: "Use eventually consistent reads."
+      C: "Enable DynamoDB Streams."
+      D: "Use BatchWriteItem."
+    answer: [A]
+    explanation: |
+      The conditional write fails with ConditionalCheckFailedException when another writer changed the
+      version. The application then reloads and retries.
+      B worsens staleness.
+      C observes changes but does not prevent conflicts.
+      D has no conditions.
+    refs: [book/src/ch07-dynamodb.md]
+
+  - id: dynamodb-009
+    domain: 1
+    task: "1.3"
+    difficulty: 1
+    question: |
+      A signup service must create a user item only if no item with the same user ID exists, without a separate
+      read. What should the PutItem call include?
+    options:
+      A: "ConditionExpression=\"attribute_not_exists(user_id)\""
+      B: "ReturnValues=\"ALL_OLD\""
+      C: "ConsistentRead=True"
+      D: "ProjectionExpression=\"user_id\""
+    answer: [A]
+    explanation: |
+      The condition is evaluated atomically by DynamoDB. If the key exists, the put fails with
+      ConditionalCheckFailedException.
+      B returns the old item after overwriting it.
+      C and D are read options.
+    refs: [book/src/ch07-dynamodb.md]
+
+  - id: dynamodb-010
+    domain: 1
+    task: "1.3"
+    difficulty: 1
+    question: |
+      A page view counter is updated by many concurrent Lambda invocations. The current code reads the count,
+      adds 1, and writes it back, and some increments are lost. What should the developer use?
+    options:
+      A: "UpdateItem with UpdateExpression \"ADD view_count :one\" (an atomic counter)."
+      B: "A transaction wrapping GetItem and PutItem."
+      C: "Strongly consistent GetItem before PutItem."
+      D: "A Scan to recompute the count."
+    answer: [A]
+    explanation: |
+      ADD (or SET x = x + :one) increments the value on the server atomically, with no read-modify-write
+      race.
+      B: transactions do not include a read-then-write of the same value like that.
+      C still races between the read and the write.
+      D is wasteful and still racy.
+    refs: [book/src/ch07-dynamodb.md]
+
+  - id: dynamodb-011
+    domain: 1
+    task: "1.3"
+    difficulty: 2
+    question: |
+      A loyalty application moves points from one member's item to another's. The debit must only happen if the
+      balance is sufficient, and both updates must succeed or fail together. Which API should the developer use?
+    options:
+      A: "TransactWriteItems with an Update (with a balance condition) on the source and an Update on the destination."
+      B: "BatchWriteItem with two PutRequests."
+      C: "Two UpdateItem calls with retries."
+      D: "PartiQL ExecuteStatement without a transaction."
+    answer: [A]
+    explanation: |
+      Transactions apply up to 100 actions all-or-nothing, and conditions can cancel the whole transaction
+      (TransactionCanceledException).
+      B is not atomic and supports no conditions.
+      C can leave a half-done transfer.
+      D runs a single statement non-transactionally.
+    refs: [book/src/ch07-dynamodb.md]
+
+  - id: dynamodb-012
+    domain: 1
+    task: "1.3"
+    difficulty: 1
+    question: |
+      User sessions stored in DynamoDB must disappear automatically 24 hours after creation, without
+      consuming write capacity. How should the developer implement this?
+    options:
+      A: "Enable TTL on an attribute and store the expiry as a Number containing an epoch timestamp in seconds."
+      B: "Run a scheduled Lambda function that scans and deletes old sessions every hour."
+      C: "Store the expiry as an ISO 8601 string and enable TTL on it."
+      D: "Use DynamoDB Streams to delete items after 24 hours."
+    answer: [A]
+    explanation: |
+      DynamoDB TTL deletes expired items in the background at no cost. The attribute must be a Number in epoch
+      seconds. Deletion is not instantaneous, so filter expired items in reads if needed.
+      B costs capacity and code.
+      C: TTL ignores string attributes.
+      D: streams cannot schedule deletions.
+    refs: [book/src/ch07-dynamodb.md]
+
+  - id: dynamodb-013
+    domain: 1
+    task: "1.2"
+    difficulty: 2
+    question: |
+      When a new customer item is inserted in a DynamoDB table, a welcome email must be sent. When the email
+      address changes, a confirmation email must be sent. Which solution meets both needs with the LEAST
+      application code?
+    options:
+      A: "Enable DynamoDB Streams with NEW_AND_OLD_IMAGES and process the records with a Lambda function."
+      B: "Enable Streams with KEYS_ONLY and read each item again."
+      C: "Poll the table every minute with a Scan."
+      D: "Enable point-in-time recovery."
+    answer: [A]
+    explanation: |
+      INSERT records trigger the welcome email. MODIFY records carry both images, so the function can compare
+      the old and new email.
+      B requires extra reads, and the old value would be lost.
+      C is inefficient and misses intermediate changes.
+      D is a backup feature.
+    refs: [book/src/ch07-dynamodb.md]
+
+  - id: dynamodb-014
+    domain: 4
+    task: "4.3"
+    difficulty: 1
+    question: |
+      A read-heavy gaming leaderboard on DynamoDB needs microsecond read latency for hot items, and the team
+      wants to change as little application code as possible. What should they use?
+    options:
+      A: "DynamoDB Accelerator (DAX)"
+      B: "Amazon ElastiCache for Redis with custom caching logic"
+      C: "DynamoDB global tables"
+      D: "Strongly consistent reads"
+    answer: [A]
+    explanation: |
+      DAX is an API-compatible, write-through cache for DynamoDB: swap the client and get microsecond reads
+      for eventually consistent queries.
+      B works but requires caching code.
+      C replicates across Regions.
+      D is slower and more expensive.
+    refs: [book/src/ch07-dynamodb.md]
+
+  - id: dynamodb-015
+    domain: 1
+    task: "1.3"
+    difficulty: 1
+    question: |
+      A new product launch will create a DynamoDB workload whose traffic is unknown and expected to be very spiky.
+      The team does not want to manage capacity. Which capacity mode should they choose?
+    options:
+      A: "On-demand"
+      B: "Provisioned with a fixed capacity"
+      C: "Provisioned with reserved capacity"
+      D: "Provisioned with auto scaling at 90% target utilization"
+    answer: [A]
+    explanation: |
+      On-demand scales instantly with traffic and charges per request, which is ideal for unknown or spiky
+      workloads.
+      B, C and D require capacity planning, and auto scaling reacts with some delay to sudden spikes.
+    refs: [book/src/ch07-dynamodb.md]
+
+  - id: dynamodb-016
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      An import job writes 100,000 items with BatchWriteItem in groups of 25. It never logs errors, yet some
+      items are missing from the table. What is the MOST likely cause?
+    options:
+      A: "Throttled writes were returned in UnprocessedItems and the job did not retry them."
+      B: "BatchWriteItem silently drops items larger than 1 KB."
+      C: "BatchWriteItem only writes 10 items per call."
+      D: "The table's TTL deleted the items immediately."
+    answer: [A]
+    explanation: |
+      BatchWriteItem returns success with an UnprocessedItems map when some writes are throttled. Retry those
+      items with exponential backoff (batch_writer does it).
+      B, C and D are false (D would need a past expiry timestamp).
+    refs: [book/src/ch07-dynamodb.md]
+
+  - id: dynamodb-017
+    domain: 2
+    task: "2.1"
+    difficulty: 3
+    question: |
+      A mobile app writes directly to DynamoDB with Cognito identity pool credentials. Each user must only read
+      and write items whose partition key equals their identity ID. How should the IAM policy restrict access?
+    options:
+      A: "Use the dynamodb:LeadingKeys condition key with the value ${cognito-identity.amazonaws.com:sub}."
+      B: "Use the aws:SourceIp condition key."
+      C: "Create one table per user."
+      D: "Filter items in the app after reading them."
+    answer: [A]
+    explanation: |
+      dynamodb:LeadingKeys restricts which partition key values a principal can access, and the policy variable
+      resolves to each user's identity ID (row-level security).
+      B is unrelated.
+      C does not scale.
+      D is insecure, because the data is already exposed.
+    refs: [book/src/ch07-dynamodb.md, book/src/ch12-cognito.md]
+
+  - id: dynamodb-018
+    domain: 1
+    task: "1.3"
+    difficulty: 2
+    question: |
+      A social app has users in Europe, the US and Asia. Users must read and write their data with low latency in
+      their own Region, and the data must survive a regional outage. Which DynamoDB feature fits?
+    options:
+      A: "Global tables (multi-Region, multi-active replication)"
+      B: "DynamoDB Accelerator (DAX) in each Region"
+      C: "Point-in-time recovery"
+      D: "A GSI per Region"
+    answer: [A]
+    explanation: |
+      Global tables replicate the table across Regions, with local reads and writes everywhere.
+      B is a cache within one Region's VPC.
+      C restores data, but does not provide multi-Region access.
+      D: GSIs are not regional replicas.
+    refs: [book/src/ch07-dynamodb.md]
+
+  - id: dynamodb-019
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      A faulty deployment corrupted items in a DynamoDB table two days ago. Point-in-time recovery was enabled.
+      How can the team recover the data as it was before the deployment?
+    options:
+      A: "Restore the table to a point in time before the deployment. The restore creates a new table, then they switch or copy the data."
+      B: "Roll back the table in place with the RestoreTableInPlace API."
+      C: "Use DynamoDB Streams to replay the last 7 days of changes."
+      D: "Recreate the items from CloudTrail data events."
+    answer: [A]
+    explanation: |
+      PITR restores any second within the last 35 days, always into a NEW table.
+      B does not exist.
+      C: streams keep only 24 hours.
+      D: CloudTrail does not store full item contents for that purpose.
+    refs: [book/src/ch07-dynamodb.md]
+
+  - id: dynamodb-020
+    domain: 4
+    task: "4.1"
+    difficulty: 1
+    question: |
+      An UpdateItem call with UpdateExpression="SET status = :s" fails with "ValidationException: Attribute name
+      is a reserved keyword; reserved keyword: status". How should the developer fix it?
+    options:
+      A: "Use an expression attribute name: \"SET #s = :s\" with ExpressionAttributeNames={\"#s\": \"status\"}."
+      B: "Rename the attribute in the table schema to STATUS."
+      C: "Use PutItem instead of UpdateItem."
+      D: "Wrap status in single quotes."
+    answer: [A]
+    explanation: |
+      Reserved words (status, name, date, data, count...) must be replaced with #placeholders in expressions.
+      B: there is no schema for non-key attributes, and case does not avoid reserved words.
+      C replaces the entire item.
+      D is invalid syntax.
+    refs: [book/src/ch07-dynamodb.md]

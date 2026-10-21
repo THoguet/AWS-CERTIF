@@ -1,0 +1,203 @@
+chapter: ch11
+topic: patterns
+questions:
+  - id: patterns-001
+    domain: 1
+    task: "1.1"
+    difficulty: 2
+    question: |
+      A Lambda function subscribed to an SNS topic charges customers' credit cards. Occasionally a customer is
+      charged twice for the same order. What is the MOST robust fix?
+    options:
+      A: "Make the function idempotent: record the order ID with a DynamoDB conditional put before charging, and skip duplicates."
+      B: "Switch the SNS subscription to email."
+      C: "Increase the function's timeout."
+      D: "Set the function's reserved concurrency to 1."
+    answer: [A]
+    explanation: |
+      SNS and Lambda asynchronous invocations deliver at least once, so duplicates are possible. An idempotency
+      key with a conditional write makes repeated deliveries harmless.
+      B is not a fix.
+      C does not prevent duplicates.
+      D reduces parallelism but duplicates can still arrive.
+    refs: [book/src/ch11-application-patterns.md]
+
+  - id: patterns-002
+    domain: 1
+    task: "1.1"
+    difficulty: 2
+    question: |
+      Five teams must react to an "OrderPlaced" business event, each with its own logic. New teams will join over
+      time, and the order service must not change when they do. Which approach fits BEST?
+    options:
+      A: "Choreography: the order service publishes the event to EventBridge, and each team adds its own rule and target."
+      B: "Orchestration: a Step Functions workflow in the order service calls each team's service in sequence."
+      C: "The order service calls each team's API synchronously."
+      D: "Each team polls the orders database."
+    answer: [A]
+    explanation: |
+      With event choreography, producers do not know their consumers, so adding a consumer means adding a rule.
+      B and C require changing the order service for every new team.
+      D couples the teams to the database and is inefficient.
+    refs: [book/src/ch11-application-patterns.md]
+
+  - id: patterns-003
+    domain: 1
+    task: "1.1"
+    difficulty: 2
+    question: |
+      A booking process must reserve a flight, then a hotel, then a car. If any step fails, the previous
+      reservations must be cancelled, and operators need to see where each booking is. Which design fits BEST?
+    options:
+      A: "Orchestration with Step Functions, with Catch blocks routing to compensating steps (saga pattern)."
+      B: "Three Lambda functions chained by direct synchronous calls."
+      C: "Three independent SQS queues with no coordinator."
+      D: "A single Lambda function with all the logic and a 15-minute timeout."
+    answer: [A]
+    explanation: |
+      A saga with an orchestrator makes the sequence, compensations and current state explicit and observable.
+      B and D handle errors and timeouts poorly.
+      C loses visibility and coordination.
+    refs: [book/src/ch11-application-patterns.md]
+
+  - id: patterns-004
+    domain: 1
+    task: "1.1"
+    difficulty: 2
+    question: |
+      An application calls a partner's REST API that is sometimes down for several minutes. During outages, all
+      worker threads hang waiting on timeouts and the whole application slows down. Which pattern addresses this?
+    options:
+      A: "A circuit breaker that stops calling the partner after repeated failures, fails fast with a fallback, and probes again after a delay."
+      B: "Retrying every failed call immediately, with no limit."
+      C: "Increasing the HTTP client timeout to 5 minutes."
+      D: "Calling the partner API from more threads."
+    answer: [A]
+    explanation: |
+      A circuit breaker protects your system during a dependency outage: open means fail fast, half-open means
+      send a trial call.
+      B and D increase load on a failing service.
+      C makes threads hang longer.
+    refs: [book/src/ch11-application-patterns.md]
+
+  - id: patterns-005
+    domain: 1
+    task: "1.1"
+    difficulty: 1
+    question: |
+      Why should retries of throttled requests use exponential backoff WITH jitter?
+    options:
+      A: "Backoff spreads retries over increasing intervals, and jitter randomizes them so that many clients do not retry at the same moment."
+      B: "Jitter guarantees that every retry will succeed."
+      C: "Backoff is required by AWS for authentication."
+      D: "Jitter reduces the size of each request."
+    answer: [A]
+    explanation: |
+      Backoff with jitter prevents synchronized retry storms (the thundering herd) and lets the overloaded
+      service recover.
+      B, C and D are false.
+    refs: [book/src/ch11-application-patterns.md, book/src/ch03-cli-sdk-sts.md]
+
+  - id: patterns-006
+    domain: 1
+    task: "1.1"
+    difficulty: 2
+    question: |
+      A partner API allows at most 20 requests per second, while the application can generate bursts of 500
+      requests per second. Requests can be processed a few minutes later. Which design respects the limit with
+      the LEAST custom code?
+    options:
+      A: "Put requests in an SQS queue and consume them with a Lambda event source mapping whose maximum concurrency is sized for 20 requests/s, with retries and a DLQ."
+      B: "Call the API directly and drop requests that receive 429."
+      C: "Add sleep() calls in the producer."
+      D: "Use a larger EC2 instance to call the API faster."
+    answer: [A]
+    explanation: |
+      Queue-based load leveling absorbs bursts. Limiting consumer concurrency controls the request rate, and
+      retries plus a DLQ handle transient errors. EventBridge API destinations with rate limiting are another
+      option.
+      B loses requests.
+      C is fragile.
+      D sends requests even faster.
+    refs: [book/src/ch11-application-patterns.md]
+
+  - id: patterns-007
+    domain: 1
+    task: "1.1"
+    difficulty: 1
+    question: |
+      Which property allows a fleet of web servers behind a load balancer to scale in and out freely and survive
+      instance failures without losing user data?
+    options:
+      A: "The servers are stateless: session and application state is stored in an external service such as DynamoDB or ElastiCache."
+      B: "Sticky sessions are enabled."
+      C: "Each server stores data on its instance store volume."
+      D: "The servers share an Elastic IP address."
+    answer: [A]
+    explanation: |
+      Stateless servers can be replaced or added at any time, because state lives in durable shared services.
+      B and C keep state on individual instances.
+      D is unrelated.
+    refs: [book/src/ch11-application-patterns.md]
+
+  - id: patterns-008
+    domain: 1
+    task: "1.3"
+    difficulty: 2
+    question: |
+      A Python function stores order totals such as 19.99 in DynamoDB with the boto3 Table resource and fails with
+      "TypeError: Float types are not supported". What is the correct fix?
+    options:
+      A: "Convert floats with decimal.Decimal(str(value)) before writing (and convert back when reading)."
+      B: "Convert floats with decimal.Decimal(value)."
+      C: "Store totals as strings in every case and parse them in every consumer."
+      D: "Use the low-level client, which accepts Python floats."
+    answer: [A]
+    explanation: |
+      boto3 maps DynamoDB numbers to Decimal. Building the Decimal from a string avoids binary float artifacts
+      (Decimal(19.99) = 19.989999999999998436805981327779591083526611328125).
+      B introduces those artifacts.
+      C loses numeric semantics (sorting, ADD).
+      D: the low-level client expects {"N": "19.99"} strings.
+    refs: [book/src/ch11-application-patterns.md]
+
+  - id: patterns-009
+    domain: 1
+    task: "1.1"
+    difficulty: 2
+    question: |
+      A synchronous API call triggers a 3-minute processing job. Users complain about timeouts and the team wants
+      a more resilient design. Which approach is BEST?
+    options:
+      A: "Make the API asynchronous: accept the request, enqueue it, return 202 Accepted with a job ID, and notify the client or let it poll."
+      B: "Increase client and server timeouts to 5 minutes."
+      C: "Retry the request on the client until it succeeds."
+      D: "Run the job in the API Gateway authorizer."
+    answer: [A]
+    explanation: |
+      Decoupling long work with a queue or workflow avoids timeouts, absorbs spikes and allows retries.
+      B still hits API Gateway limits and ties up connections.
+      C multiplies the load.
+      D is nonsense.
+    refs: [book/src/ch11-application-patterns.md]
+
+  - id: patterns-010
+    domain: 1
+    task: "1.1"
+    difficulty: 3
+    question: |
+      A team publishes "CustomerUpdated" events consumed by several services. They must add a field and rename an
+      existing one without breaking consumers. Which approach is BEST?
+    options:
+      A: "Add the new field and keep the old one (backward-compatible change), or publish a new versioned detail-type and migrate consumers before removing the old one."
+      B: "Rename the field in place and notify consumers by email."
+      C: "Stop publishing events until all consumers are updated."
+      D: "Put the whole event in a binary blob so the schema does not matter."
+    answer: [A]
+    explanation: |
+      Event schemas are contracts: evolve them compatibly (add optional fields, version breaking changes, keep
+      both versions during migration). The EventBridge schema registry helps document them.
+      B breaks consumers.
+      C causes an outage.
+      D hides the contract without removing it.
+    refs: [book/src/ch11-application-patterns.md]

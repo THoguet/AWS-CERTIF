@@ -1,0 +1,308 @@
+chapter: ch09
+topic: messaging
+questions:
+  - id: messaging-001
+    domain: 1
+    task: "1.1"
+    difficulty: 1
+    question: |
+      An order API must stay responsive during flash sales, while order processing by a downstream service takes
+      several seconds and must not lose any order. Which design decouples the two components?
+    options:
+      A: "The API writes each order to an Amazon SQS queue, and workers consume the queue at their own pace."
+      B: "The API calls the processing service synchronously and retries on errors."
+      C: "The API publishes to an SNS topic with no subscribers."
+      D: "The API writes orders to the processing service's local disk."
+    answer: [A]
+    explanation: |
+      SQS buffers bursts durably (up to 14 days of retention), and consumers scale independently
+      (queue-based load leveling).
+      B couples the API to the slow service.
+      C: SNS does not store messages without subscribers.
+      D is fragile.
+    refs: [book/src/ch09-messaging.md]
+
+  - id: messaging-002
+    domain: 1
+    task: "1.1"
+    difficulty: 2
+    question: |
+      Payment events of each customer must be processed strictly in order and exactly once, while events of
+      different customers can be processed in parallel. Which solution meets the requirements?
+    options:
+      A: "An SQS FIFO queue with MessageGroupId set to the customer ID and deduplication enabled."
+      B: "An SQS standard queue with one consumer per customer."
+      C: "An SNS standard topic with an SQS standard subscription."
+      D: "An SQS standard queue with a delay of 15 minutes."
+    answer: [A]
+    explanation: |
+      FIFO queues guarantee order within a message group and deduplicate within a 5-minute interval. Different
+      groups are processed in parallel.
+      B, C and D use standard (at-least-once, best-effort ordering) resources.
+    refs: [book/src/ch09-messaging.md]
+
+  - id: messaging-003
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      Consumers of a standard SQS queue take about 90 seconds to process each message, and many messages are
+      processed twice. The queue uses default settings. What should the developer change?
+    options:
+      A: "Increase the queue's visibility timeout above the processing time (or extend it with ChangeMessageVisibility during processing)."
+      B: "Enable long polling."
+      C: "Reduce the message retention period."
+      D: "Enable content-based deduplication on the standard queue."
+    answer: [A]
+    explanation: |
+      The default visibility timeout is 30 seconds, so messages reappear while still being processed and other
+      consumers receive them.
+      B reduces empty receives.
+      C shortens storage.
+      D only exists on FIFO queues.
+    refs: [book/src/ch09-messaging.md]
+
+  - id: messaging-004
+    domain: 4
+    task: "4.3"
+    difficulty: 1
+    question: |
+      A worker polls an SQS queue in a tight loop. Most ReceiveMessage calls return no messages, which costs money
+      and CPU. What is the simplest improvement?
+    options:
+      A: "Enable long polling by setting WaitTimeSeconds (up to 20 s) on ReceiveMessage or ReceiveMessageWaitTimeSeconds on the queue."
+      B: "Set the visibility timeout to 0."
+      C: "Use a FIFO queue."
+      D: "Add a delay queue of 15 minutes."
+    answer: [A]
+    explanation: |
+      Long polling waits for messages to arrive before returning, which reduces empty responses and cost.
+      B causes duplicate processing.
+      C and D do not address empty polls.
+    refs: [book/src/ch09-messaging.md]
+
+  - id: messaging-005
+    domain: 1
+    task: "1.1"
+    difficulty: 2
+    question: |
+      A few malformed messages fail every time they are processed and keep returning to the queue, consuming
+      worker capacity indefinitely. What should the developer configure?
+    options:
+      A: "A dead-letter queue with a redrive policy (maxReceiveCount) on the source queue, and an alarm on the DLQ."
+      B: "A longer message retention period."
+      C: "A larger visibility timeout."
+      D: "Short polling."
+    answer: [A]
+    explanation: |
+      After maxReceiveCount failed receives, SQS moves the message to the DLQ for inspection, and an alarm on
+      the DLQ depth notifies the team.
+      B keeps poison messages longer.
+      C only delays the retries.
+      D is unrelated.
+    refs: [book/src/ch09-messaging.md]
+
+  - id: messaging-006
+    domain: 1
+    task: "1.1"
+    difficulty: 3
+    question: |
+      A team moves failed messages from a standard queue (retention 4 days) to a DLQ that also has a 4-day
+      retention. Some messages vanish from the DLQ only hours after arriving there. Why?
+    options:
+      A: "For standard queues, a message keeps its original enqueue timestamp, so retention counts from when it was first sent. The DLQ should have a longer retention."
+      B: "DLQs delete messages after one receive."
+      C: "The DLQ must be a FIFO queue."
+      D: "Messages larger than 64 KB expire early."
+    answer: [A]
+    explanation: |
+      Retention is computed from the original enqueue time. A message that spent ~4 days failing expires soon
+      after reaching the DLQ. Set a longer DLQ retention (up to 14 days).
+      B, C and D are false.
+    refs: [book/src/ch09-messaging.md]
+
+  - id: messaging-007
+    domain: 1
+    task: "1.1"
+    difficulty: 2
+    question: |
+      An application must send messages of up to 5 MB through a queue. The architecture review references the
+      classic SQS size limit. What is the recommended pattern?
+    options:
+      A: "Store the payload in S3 and send a message containing a reference to the object (claim check, e.g. the SQS Extended Client Library)."
+      B: "Compress the payload until it fits."
+      C: "Split the payload into numbered chunks across several messages."
+      D: "Use an SNS topic instead, which accepts 5 MB messages."
+    answer: [A]
+    explanation: |
+      The claim-check pattern keeps messages small and payloads in S3. The extended client libraries automate
+      it (up to 2 GB).
+      B is not guaranteed.
+      C is complex and error-prone.
+      D: SNS is limited to 256 KiB by default, or 1 MiB when opted in.
+    refs: [book/src/ch09-messaging.md]
+
+  - id: messaging-008
+    domain: 1
+    task: "1.1"
+    difficulty: 1
+    question: |
+      When an order is placed, the billing, shipping and analytics services must each receive a copy and process
+      it independently, with their own retries. Which architecture should be used?
+    options:
+      A: "Publish to an SNS topic subscribed by three SQS queues, one per service (fan-out)."
+      B: "One SQS queue consumed by the three services."
+      C: "Have billing call shipping, which calls analytics."
+      D: "Write the order to a DynamoDB table that each service scans."
+    answer: [A]
+    explanation: |
+      SNS pushes a copy to each subscribed queue. Each service consumes its own durable queue with its own DLQ.
+      B: with competing consumers, each message goes to only one of them.
+      C couples the services.
+      D is inefficient.
+    refs: [book/src/ch09-messaging.md]
+
+  - id: messaging-009
+    domain: 4
+    task: "4.3"
+    difficulty: 2
+    question: |
+      A shipping service subscribed to an SNS topic receives all order events, but only needs those with
+      country = FR or BE and event_type = order_placed. It discards the rest in code. How can this be optimized
+      with no code change in the service?
+    options:
+      A: "Add a subscription filter policy {\"country\": [\"FR\", \"BE\"], \"event_type\": [\"order_placed\"]} on its subscription."
+      B: "Create a separate topic for each country."
+      C: "Enable raw message delivery."
+      D: "Increase the service's concurrency."
+    answer: [A]
+    explanation: |
+      Filter policies are evaluated by SNS: AND across keys, OR within a key's list. Non-matching messages are
+      never delivered.
+      B requires changes in the producers.
+      C removes the envelope but does not filter.
+      D increases cost.
+    refs: [book/src/ch09-messaging.md]
+
+  - id: messaging-010
+    domain: 1
+    task: "1.1"
+    difficulty: 2
+    question: |
+      A company wants to react to AWS service events (e.g. EC2 state changes, CodePipeline failures) and to events
+      from a SaaS partner, route them by content to several targets, and replay past events after fixing a bug.
+      Which service fits BEST?
+    options:
+      A: "Amazon EventBridge with rules, archive and replay."
+      B: "Amazon SNS with filter policies."
+      C: "Amazon SQS FIFO."
+      D: "Amazon Kinesis Data Firehose."
+    answer: [A]
+    explanation: |
+      EventBridge receives AWS service events on the default bus and SaaS partner events on partner buses, and
+      routes them with content-based patterns to multiple targets, with archive and replay.
+      B has no native AWS or SaaS event sources and no replay.
+      C and D are not event routers.
+    refs: [book/src/ch09-messaging.md]
+
+  - id: messaging-011
+    domain: 1
+    task: "1.1"
+    difficulty: 2
+    question: |
+      An EventBridge rule must match custom events from source "shop.orders" with detail-type "OrderPlaced" whose
+      detail.amount is at least 100. Which event pattern is correct?
+    options:
+      A: "{\"source\": [\"shop.orders\"], \"detail-type\": [\"OrderPlaced\"], \"detail\": {\"amount\": [{\"numeric\": [\">=\", 100]}]}}"
+      B: "{\"source\": \"shop.orders\", \"detail-type\": \"OrderPlaced\", \"detail\": {\"amount\": \">= 100\"}}"
+      C: "{\"source\": [\"shop.orders\"], \"amount\": [{\"numeric\": [\">=\", 100]}]}"
+      D: "{\"detail\": {\"amount\": [100]}}"
+    answer: [A]
+    explanation: |
+      Pattern values must be arrays, content filters use objects such as numeric, and custom fields live under
+      detail.
+      B uses scalars and a string comparison.
+      C puts amount at the top level instead of under detail.
+      D matches exactly 100 and ignores the source.
+    refs: [book/src/ch09-messaging.md]
+
+  - id: messaging-012
+    domain: 1
+    task: "1.1"
+    difficulty: 1
+    question: |
+      A developer needs to run a cleanup Lambda function every day at 02:00 in the Europe/Paris time zone
+      (including daylight saving changes), with minimal effort. What should they use?
+    options:
+      A: "An EventBridge Scheduler schedule with a cron expression and the Europe/Paris time zone."
+      B: "A cron job on an EC2 instance."
+      C: "An SQS delay queue."
+      D: "A Step Functions Wait state looping forever."
+    answer: [A]
+    explanation: |
+      EventBridge Scheduler supports cron/rate expressions with time zones and flexible windows, and invokes
+      Lambda directly.
+      B adds a server to manage.
+      C: delays are limited to 15 minutes.
+      D is wasteful and fragile.
+    refs: [book/src/ch09-messaging.md]
+
+  - id: messaging-013
+    domain: 4
+    task: "4.1"
+    difficulty: 2
+    question: |
+      An SNS topic is configured with an SQS queue subscription, but no messages ever arrive in the queue. SNS
+      publishes succeed. What is the MOST likely cause?
+    options:
+      A: "The SQS queue's access policy does not allow the SNS topic to send messages (sqs:SendMessage with aws:SourceArn = topic ARN)."
+      B: "The queue is a standard queue."
+      C: "Raw message delivery is disabled."
+      D: "Long polling is disabled."
+    answer: [A]
+    explanation: |
+      SNS needs permission in the queue's resource-based policy. If the queue uses SSE-KMS, the key policy must
+      also allow SNS to use the key.
+      B: standard queues are valid subscribers.
+      C and D do not prevent delivery.
+    refs: [book/src/ch09-messaging.md]
+
+  - id: messaging-014
+    domain: 1
+    task: "1.1"
+    difficulty: 2
+    question: |
+      Which statements about Amazon SQS standard queues are true? (Choose TWO.)
+    options:
+      A: "A message can occasionally be delivered more than once, so consumers should be idempotent."
+      B: "Messages are kept for 4 days by default and up to 14 days."
+      C: "Messages are always delivered in the exact order they were sent."
+      D: "A consumer must delete a message after processing, otherwise it is deleted automatically after the first receive."
+      E: "Throughput is limited to 300 messages per second."
+    answer: [A, B]
+    explanation: |
+      Standard queues offer at-least-once delivery and best-effort ordering. Default retention is 4 days,
+      configurable from 1 minute to 14 days.
+      C describes FIFO queues (within a group).
+      D: undeleted messages reappear after the visibility timeout.
+      E is the FIFO limit without batching.
+    refs: [book/src/ch09-messaging.md]
+
+  - id: messaging-015
+    domain: 4
+    task: "4.3"
+    difficulty: 2
+    question: |
+      A producer sends 1,000 small SQS messages per second with one SendMessage call per message, and request
+      costs are high. How can the developer reduce the number of API requests?
+    options:
+      A: "Use SendMessageBatch to send up to 10 messages per request (and DeleteMessageBatch on the consumer side)."
+      B: "Use a FIFO queue."
+      C: "Increase the visibility timeout."
+      D: "Use a delay queue."
+    answer: [A]
+    explanation: |
+      Batch APIs send, receive and delete up to 10 messages per request, which cuts request count and cost.
+      B can actually lower throughput.
+      C and D do not reduce requests.
+    refs: [book/src/ch09-messaging.md, book/src/ch23-optimization.md]
