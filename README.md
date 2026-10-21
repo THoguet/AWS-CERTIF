@@ -119,6 +119,13 @@ uv run pytest                                # tool tests, lab unit tests (moto)
 uv run python scripts/check_exercises.py     # every solution passes, every untouched exercise fails
 ```
 
+## Publishing to a private Gitea
+
+`GITEA_TOKEN=<token> bash scripts/publish_to_gitea.sh` creates the private repository
+`AWS-CERTIF` on `https://gitea.nessar.fr` if it does not exist, then pushes the current branch to
+its `main` branch. Set `GITEA_URL`, `REPO_NAME` or `BRANCH` to change the target. The token is never
+printed or stored in the git configuration.
+
 ## Accuracy and disclaimer
 
 - This is an independent study project. It is not affiliated with or endorsed by Amazon Web Services.
